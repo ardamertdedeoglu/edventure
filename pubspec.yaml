@@ -51,6 +51,7 @@ dependencies:
   permission_handler: ^11.3.0
   timezone: ^0.9.2
   image_picker: ^1.1.2
+  flutter_dotenv: ^5.1.0
   
 
 dev_dependencies:
@@ -81,6 +82,7 @@ flutter:
   assets:
     - lib/data/programs.json
     - assets/
+    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

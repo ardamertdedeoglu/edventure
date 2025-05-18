@@ -3,6 +3,7 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'config/environment_config.dart';
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
@@ -49,16 +50,16 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCI_jfSEQUAGg10i_eCsvf9exQUlSh0K-E',
+  static FirebaseOptions get android => FirebaseOptions(
+    apiKey: EnvironmentConfig.firebaseWebApiKey,
     appId: '1:632463578682:android:ef8f0f70109c6ea0f04703',
     messagingSenderId: '632463578682',
     projectId: 'hackathon-app-project',
     storageBucket: 'hackathon-app-project.firebasestorage.app',
   );
 
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAUxA_Ymtu5sY0NCU1RCybAoFo289Lew30',
+  static FirebaseOptions get ios => FirebaseOptions(
+    apiKey: EnvironmentConfig.firebaseAndroidApiKey,
     appId: '1:632463578682:ios:5912d32505696672f04703',
     messagingSenderId: '632463578682',
     projectId: 'hackathon-app-project',

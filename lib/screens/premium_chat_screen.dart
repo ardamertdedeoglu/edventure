@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:chat_bubbles/chat_bubbles.dart';
 import 'package:flutter_gemini/flutter_gemini.dart';
+import '../config/environment_config.dart';
 
 class PremiumChatScreen extends StatefulWidget {
   const PremiumChatScreen({super.key});
@@ -42,7 +43,7 @@ class _PremiumChatScreenState extends State<PremiumChatScreen> {
     try {
       Gemini.instance;
     } catch (e) {
-      Gemini.init(apiKey: 'AIzaSyB0kqcjUvlKL2GViBfCSgP9tzKn212xc6g');
+      Gemini.init(apiKey: EnvironmentConfig.geminiApiKey);
     }
   }
 

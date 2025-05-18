@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/environment_config.dart';
 
 class BudgetPlannerScreen extends StatefulWidget {
   const BudgetPlannerScreen({super.key});
@@ -73,7 +74,7 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
   Future<Map<String, dynamic>?> _analyzeUserRequest(String request) async {
     try {
       // Use a more capable model for precise analysis
-      const apiKey = "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";
+      final apiKey = EnvironmentConfig.claudeApiKey;
       final url = Uri.parse("https://api.openai.com/v1/chat/completions");
       
       final response = await http.post(
@@ -141,7 +142,7 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
   // Generate recommendations based on the analysis
   Future<List<TravelRecommendation>> _fetchRecommendations(Map<String, dynamic> analysis) async {
     try {
-      const apiKey = "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";
+      final apiKey = EnvironmentConfig.claudeApiKey;
       final url = Uri.parse("https://api.openai.com/v1/chat/completions");
       
       final response = await http.post(

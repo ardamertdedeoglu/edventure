@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
+import '../config/environment_config.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -72,7 +73,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Future<Map<String, dynamic>?> _extractEvent(String text) async {
-    const apiKey = "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";
+    final apiKey = EnvironmentConfig.claudeApiKey;
     final url = Uri.parse("https://api.openai.com/v1/chat/completions");
 
     try {

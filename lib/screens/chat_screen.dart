@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_gemini/flutter_gemini.dart';
 import 'package:chat_bubbles/chat_bubbles.dart';
+import '../config/environment_config.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -33,7 +34,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       Gemini.instance;
     } catch (e) {
-      Gemini.init(apiKey: 'AIzaSyB0kqcjUvlKL2GViBfCSgP9tzKn212xc6g');
+      Gemini.init(apiKey: EnvironmentConfig.geminiApiKey);
     }
   }
 

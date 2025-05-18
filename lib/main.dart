@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/auth_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
@@ -9,13 +10,17 @@ import 'screens/register_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'firebase_options.dart';
 import 'package:flutter_gemini/flutter_gemini.dart';
+import 'config/environment_config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Load environment variables
+  await dotenv.load(fileName: ".env");
+  
   // Initialize Gemini API
   try {
-    Gemini.init(apiKey: 'AIzaSyB0kqcjUvlKL2GViBfCSgP9tzKn212xc6g');
+    Gemini.init(apiKey: EnvironmentConfig.geminiApiKey);
     print('Gemini API initialized successfully');
   } catch (e) {
     print('Error initializing Gemini API: $e');
