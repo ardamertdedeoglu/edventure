@@ -1,0 +1,30 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "hackathon-app-project",
+          "appId": "1:632463578682:android:ef8f0f70109c6ea0f04703",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "hackathon-app-project",
+          "configurations": {
+            "android": "1:632463578682:android:ef8f0f70109c6ea0f04703",
+            "ios": "1:632463578682:ios:5912d32505696672f04703"
+          }
+        }
+      }
+    }
+  },
+  "functions": {
+    "source": "lib/functions",
+    "runtime": "nodejs18"
+  },
+  "hosting": {
+    "public": "public",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+  }
+}

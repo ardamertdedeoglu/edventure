@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "semanticSearch": "hackathon-app-project",
+    "staging": "hackathon-app-project"
+  },
+  "targets": {},
+  "etags": {}
+}
