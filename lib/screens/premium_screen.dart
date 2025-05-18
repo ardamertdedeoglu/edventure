@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'premium_chat_screen.dart';
-import 'cv_review_screen.dart';
 
 class PremiumScreen extends StatelessWidget {
-  const PremiumScreen({Key? key}) : super(key: key);
+  const PremiumScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -293,6 +292,8 @@ class PremiumScreen extends StatelessWidget {
 }
 
 class PaymentBottomSheet extends StatefulWidget {
+  const PaymentBottomSheet({super.key});
+
   @override
   _PaymentBottomSheetState createState() => _PaymentBottomSheetState();
 }

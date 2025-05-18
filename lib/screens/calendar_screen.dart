@@ -7,13 +7,15 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 
 class CalendarScreen extends StatefulWidget {
+  const CalendarScreen({super.key});
+
   @override
   _CalendarScreenState createState() => _CalendarScreenState();
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
   final DeviceCalendarPlugin _calendarPlugin = DeviceCalendarPlugin();
-  TextEditingController _controller = TextEditingController();
+  final TextEditingController _controller = TextEditingController();
   List<Calendar> _calendars = [];
   Calendar? _selectedCalendar;
   String _statusMessage = "Henüz etkinlik eklenmedi";

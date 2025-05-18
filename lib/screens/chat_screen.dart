@@ -3,7 +3,7 @@ import 'package:flutter_gemini/flutter_gemini.dart';
 import 'package:chat_bubbles/chat_bubbles.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({Key? key}) : super(key: key);
+  const ChatScreen({super.key});
   
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -57,7 +57,7 @@ class _ChatScreenState extends State<ChatScreen> {
         : _messages;
     
     // Start with the system prompt
-    String conversationContext = _systemPrompt + "\n\n";
+    String conversationContext = "$_systemPrompt\n\n";
     
     // Add conversation history
     conversationContext += "Aşağıdaki sohbet geçmişine dayanarak en son mesaja cevap ver:\n\n";

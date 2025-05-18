@@ -6,7 +6,7 @@ import '../services/auth_service.dart';
 import '../services/program_service.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({Key? key}) : super(key: key);
+  const SearchScreen({super.key});
   @override
   _SearchScreenState createState() => _SearchScreenState();
 }
@@ -263,7 +263,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             SizedBox(height: 16),
-            Container(
+            SizedBox(
               width: MediaQuery.of(context).size.width * 0.7,
               child: Text(
                 'Anahtar kelimeler yerine doğal dil ile aramak isteğinizi ifade edin',

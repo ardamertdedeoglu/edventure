@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class CVReviewScreen extends StatefulWidget {
-  const CVReviewScreen({Key? key}) : super(key: key);
+  const CVReviewScreen({super.key});
 
   @override
   _CVReviewScreenState createState() => _CVReviewScreenState();
@@ -468,7 +468,7 @@ class _CVReviewScreenState extends State<CVReviewScreen> {
               ),
             ],
           ),
-        )).toList(),
+        )),
       ],
     );
   }

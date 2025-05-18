@@ -9,14 +9,12 @@ import '../services/favorites_service.dart';
 import 'package:device_calendar/device_calendar.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
-import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
-import 'chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   _HomeScreenState createState() => _HomeScreenState();
@@ -470,10 +468,10 @@ Girdi: "Yarın toplantı"
       // Remove common filler words at the beginning and end
       List<String> fillerWords = ["var", "olacak", "yapılacak", "için", "ile"];
       for (String word in fillerWords) {
-        if (title.startsWith(word + " ")) {
+        if (title.startsWith("$word ")) {
           title = title.substring(word.length + 1).trim();
         }
-        if (title.endsWith(" " + word)) {
+        if (title.endsWith(" $word")) {
           title = title.substring(0, title.length - word.length - 1).trim();
         }
       }
@@ -557,12 +555,12 @@ Girdi: "Yarın toplantı"
           
           // Ensure proper formatting with padded values
           if (!normalized.contains('T')) {
-            normalized = normalized + 'T00:00';
+            normalized = '${normalized}T00:00';
           }
           
           // Ensure it has seconds if needed
           if (normalized.split('T')[1].split(':').length < 3) {
-            normalized = normalized + ':00';
+            normalized = '$normalized:00';
           }
           
           print("Normalized date string: $normalized");
@@ -611,7 +609,7 @@ Girdi: "Yarın toplantı"
           _eventController.clear();
         } else {
           print("Failed to add event. Errors: ${result?.errors}");
-          final errorMsg = result?.errors?.join(", ") ?? "Bilinmeyen hata";
+          final errorMsg = result?.errors.join(", ") ?? "Bilinmeyen hata";
           setState(() {
             _calendarStatusMessage = "Etkinlik eklenemedi: $errorMsg";
           });
@@ -1072,7 +1070,7 @@ Girdi: "Yarın toplantı"
                     SizedBox(height: 8),
                     _isLoadingWelcomeMessage
                       ? Center(
-                          child: Container(
+                          child: SizedBox(
                             height: 40,
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -1200,7 +1198,7 @@ Girdi: "Yarın toplantı"
                           style: TextStyle(color: Colors.red),
                         )
                       else if (searchResults.isNotEmpty)
-                        Container(
+                        SizedBox(
                           height: 200, // Fixed height for search results
                           child: ListView.builder(
                             shrinkWrap: true,
@@ -1232,7 +1230,7 @@ Girdi: "Yarın toplantı"
                                       ),
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(16),
-                                        child: Container(
+                                        child: SizedBox(
                                           width: double.maxFinite,
                                           height: MediaQuery.of(context).size.height * 0.8,
                                           child: Column(

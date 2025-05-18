@@ -9,7 +9,7 @@ import '../services/auth_service.dart';
 import 'chat_screen.dart';
 
 class TodoScreen extends StatefulWidget {
-  const TodoScreen({Key? key}) : super(key: key);
+  const TodoScreen({super.key});
 
   @override
   _TodoScreenState createState() => _TodoScreenState();

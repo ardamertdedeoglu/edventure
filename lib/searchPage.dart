@@ -157,7 +157,7 @@ class _ProgramSearchPageState extends State<ProgramSearchPage> {
               ),
             ),
             SizedBox(height: 16),
-            Container(
+            SizedBox(
               width: MediaQuery.of(context).size.width * 0.7,
               child: Text(
                 'Anahtar kelimeler yerine doğal dil ile aramak isteğinizi ifade edin',

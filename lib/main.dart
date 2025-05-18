@@ -36,7 +36,7 @@ void main() async {
 class MyApp extends StatelessWidget {
   final String? errorMessage;
   
-  const MyApp({this.errorMessage, Key? key}) : super(key: key);
+  const MyApp({this.errorMessage, super.key});
 
   @override
   Widget build(BuildContext context) {

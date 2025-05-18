@@ -4,7 +4,7 @@ import 'package:chat_bubbles/chat_bubbles.dart';
 import 'package:flutter_gemini/flutter_gemini.dart';
 
 class PremiumChatScreen extends StatefulWidget {
-  const PremiumChatScreen({Key? key}) : super(key: key);
+  const PremiumChatScreen({super.key});
   
   @override
   _PremiumChatScreenState createState() => _PremiumChatScreenState();
@@ -399,7 +399,7 @@ SOHBET GEÇMİŞİ:
             ),
           ),
           SizedBox(height: 16),
-          Container(
+          SizedBox(
             height: 250,
             child: ListView.builder(
               itemCount: prompts.length,

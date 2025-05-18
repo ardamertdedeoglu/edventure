@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'calendar_screen.dart';
 import 'home_screen.dart';
-import 'search_screen.dart';
 import 'chat_screen.dart';
 import 'todo_screen.dart';
 import 'profile_screen.dart';
@@ -13,7 +11,7 @@ import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({Key? key}) : super(key: key);
+  const MainScreen({super.key});
 
   @override
   _MainScreenState createState() => _MainScreenState();

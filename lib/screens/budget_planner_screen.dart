@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../services/auth_service.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class BudgetPlannerScreen extends StatefulWidget {
-  const BudgetPlannerScreen({Key? key}) : super(key: key);
+  const BudgetPlannerScreen({super.key});
 
   @override
   _BudgetPlannerScreenState createState() => _BudgetPlannerScreenState();
@@ -187,7 +185,7 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
             },
             {
               "role": "user",
-              "content": "Kullanıcı analizi: " + jsonEncode(analysis)
+              "content": "Kullanıcı analizi: ${jsonEncode(analysis)}"
             }
           ],
           "temperature": 0.7,
@@ -592,7 +590,7 @@ class TravelRecommendation {
     String cost = json['cost'] ?? 'Belirtilmemiş';
     // Limit length if too long
     if (cost.length > 20) {
-      cost = cost.substring(0, 18) + '...';
+      cost = '${cost.substring(0, 18)}...';
     }
     
     return TravelRecommendation(

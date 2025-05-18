@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/favorites_service.dart';
@@ -11,7 +10,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
@@ -798,12 +797,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onPressed: () {
                 Navigator.pushNamed(context, '/login');
               },
-              child: Text('Giriş Yap', style: GoogleFonts.poppins()),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF246EE9),
                 foregroundColor: Colors.white,
                 padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               ),
+              child: Text('Giriş Yap', style: GoogleFonts.poppins()),
             ),
           ],
         ),
