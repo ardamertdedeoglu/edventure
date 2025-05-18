@@ -20,6 +20,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   List<Calendar> _calendars = [];
   Calendar? _selectedCalendar;
   String _statusMessage = "Henüz etkinlik eklenmedi";
+  bool _isPermissionRequested = false;
 
   @override
   void initState() {
@@ -29,24 +30,72 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Future<void> _requestPermissions() async {
-    // Hem okuma hem yazma izni isteyelim
-    var calendarStatus = await Permission.calendarWriteOnly.request();
-    
-    if (calendarStatus.isGranted) {
-      _loadCalendars();
-    } else {
+    setState(() {
+      _statusMessage = "Takvim izinleri isteniyor...";
+    });
+
+    try {
+      // Hem okuma hem de yazma izinlerini iste
+      var calendarReadStatus = await Permission.calendar.request();
+      var calendarWriteStatus = await Permission.calendarWriteOnly.request();
+      
       setState(() {
-        _statusMessage = "Takvim izni verilmedi: $calendarStatus";
+        _isPermissionRequested = true;
       });
-      print("Takvim izni verilmedi: $calendarStatus");
+      
+      print("Takvim okuma izni: $calendarReadStatus");
+      print("Takvim yazma izni: $calendarWriteStatus");
+      
+      // İzinlerin verildiği durumu kontrol et
+      if (calendarReadStatus.isGranted || calendarWriteStatus.isGranted) {
+        _loadCalendars();
+      } else {
+        setState(() {
+          _statusMessage = "Takvim izinleri verilmedi. Lütfen uygulama ayarlarından izinleri etkinleştirin.";
+        });
+        
+        // Kullanıcıyı izin ayarlarına yönlendir
+        await openAppSettings();
+      }
+    } catch (e) {
+      setState(() {
+        _statusMessage = "İzin isteme hatası: $e";
+      });
+      print("İzin isteme hatası: $e");
     }
   }
   
   Future<void> _loadCalendars() async {
     try {
+      setState(() {
+        _statusMessage = "Takvimler yükleniyor...";
+      });
+      
+      // Önce mevcut izinleri kontrol et
+      final permissionStatus = await _calendarPlugin.hasPermissions();
+      print("Takvim Plugin izin durumu: ${permissionStatus.data}");
+      
+      if (permissionStatus.data != true && _isPermissionRequested) {
+        final requestPermissionResult = await _calendarPlugin.requestPermissions();
+        print("Takvim Plugin izin isteği sonucu: ${requestPermissionResult.data}");
+        
+        if (requestPermissionResult.data != true) {
+          setState(() {
+            _statusMessage = "Takvim izinleri verilmedi. Etkinlik eklenemeyecek.";
+          });
+          return;
+        }
+      }
+      
+      // Takvimleri getir
       var calendarsResult = await _calendarPlugin.retrieveCalendars();
       
-      print("Mevcut takvimler: ${calendarsResult.data?.map((c) => "${c.id}: ${c.name}").join(", ")}");
+      // Debug için takvimleri yazdır
+      if (calendarsResult.data != null) {
+        for (var calendar in calendarsResult.data!) {
+          print("Takvim ID: ${calendar.id}, İsim: ${calendar.name}, Hesap Adı: ${calendar.accountName}");
+        }
+      }
       
       // Null güvenliği için boş liste kullan
       final calList = calendarsResult.data as List<Calendar>? ?? <Calendar>[];
@@ -61,7 +110,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         if(calList.isEmpty) {
           _statusMessage = "Kullanılabilir takvim bulunamadı";
         } else {
-          _statusMessage = "Kullanılacak takvim: ${_selectedCalendar?.name ?? 'Seçilmedi'}";
+          _statusMessage = "Kullanılacak takvim: ${_getCalendarDisplayName(_selectedCalendar)}";
         }
       });
     } catch (e) {
@@ -70,6 +119,29 @@ class _CalendarScreenState extends State<CalendarScreen> {
       });
       print("Takvimler yüklenirken hata: $e");
     }
+  }
+  
+  // Takvim adını daha iyi göster
+  String _getCalendarDisplayName(Calendar? calendar) {
+    if (calendar == null) return 'Seçilmedi';
+    
+    // Takvim adı varsa kullan
+    if (calendar.name != null && calendar.name!.isNotEmpty) {
+      return calendar.name!;
+    }
+    
+    // Hesap adı varsa kullan
+    if (calendar.accountName != null && calendar.accountName!.isNotEmpty) {
+      return '${calendar.accountName} Takvimi';
+    }
+    
+    // Takvimin tanımı veya türü varsa kullan
+    if (calendar.isReadOnly != null) {
+      return calendar.isReadOnly! ? 'Salt Okunur Takvim' : 'Yazılabilir Takvim';
+    }
+    
+    // Hiçbir bilgi yoksa varsayılan ad
+    return 'Takvim #${calendar.id?.substring(0, 4) ?? "?"}';
   }
 
   Future<Map<String, dynamic>?> _extractEvent(String text) async {
@@ -216,29 +288,56 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   Widget _buildCalendarDropdown() {
     if (_calendars.isEmpty) {
-      return Text("Kullanılabilir takvim bulunamadı", style: TextStyle(color: Colors.red));
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Kullanılabilir takvim bulunamadı", 
+            style: TextStyle(color: Colors.red)
+          ),
+          SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _requestPermissions,
+            icon: Icon(Icons.refresh),
+            label: Text("İzinleri Yenile"),
+          ),
+        ],
+      );
     }
     
-    return DropdownButton<String>(
-      hint: Text("Takvim Seçin"),
-      value: _selectedCalendar?.id,
-      isExpanded: true,
-      onChanged: (String? newValue) {
-        if (newValue != null) {
-          final selectedCal = _calendars.firstWhere((cal) => cal.id == newValue, 
-              orElse: () => _calendars.first);
-          setState(() {
-            _selectedCalendar = selectedCal;
-            _statusMessage = "Seçilen takvim: ${selectedCal.name ?? 'İsimsiz'}";
-          });
-        }
-      },
-      items: _calendars.map<DropdownMenuItem<String>>((Calendar calendar) {
-        return DropdownMenuItem<String>(
-          value: calendar.id,
-          child: Text(calendar.name ?? "İsimsiz Takvim"),
-        );
-      }).toList(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          "Takvim Seçin:",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        SizedBox(height: 8),
+        DropdownButton<String>(
+          hint: Text("Takvim Seçin"),
+          value: _selectedCalendar?.id,
+          isExpanded: true,
+          onChanged: (String? newValue) {
+            if (newValue != null) {
+              final selectedCal = _calendars.firstWhere((cal) => cal.id == newValue, 
+                  orElse: () => _calendars.first);
+              setState(() {
+                _selectedCalendar = selectedCal;
+                _statusMessage = "Seçilen takvim: ${_getCalendarDisplayName(selectedCal)}";
+              });
+            }
+          },
+          items: _calendars.map<DropdownMenuItem<String>>((Calendar calendar) {
+            return DropdownMenuItem<String>(
+              value: calendar.id,
+              child: Text(_getCalendarDisplayName(calendar)),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 

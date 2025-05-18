@@ -8,6 +8,7 @@ import '../services/program_service.dart';
 import '../services/favorites_service.dart';
 import 'package:device_calendar/device_calendar.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:app_settings/app_settings.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:timezone/timezone.dart' as tz;
@@ -246,20 +247,60 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Calendar related methods
   Future<void> _requestCalendarPermissions() async {
-    var calendarStatus = await Permission.calendarWriteOnly.request();
+    setState(() {
+      _calendarStatusMessage = "Takvim izinleri isteniyor...";
+    });
 
-    if (calendarStatus.isGranted) {
-      _loadCalendars();
-    } else {
+    try {
+      // Hem okuma hem de yazma izinlerini iste
+      var calendarReadStatus = await Permission.calendar.request();
+      var calendarWriteStatus = await Permission.calendarWriteOnly.request();
+      
+      print("Takvim okuma izni: $calendarReadStatus");
+      print("Takvim yazma izni: $calendarWriteStatus");
+      
+      // İzinlerin verildiği durumu kontrol et
+      if (calendarReadStatus.isGranted || calendarWriteStatus.isGranted) {
+        _loadCalendars();
+      } else {
+        setState(() {
+          _calendarStatusMessage = "Takvim izinleri verilmedi. Lütfen uygulama ayarlarından izinleri etkinleştirin.";
+        });
+        
+        // Kullanıcıya izin problemi olduğunu bildir
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Takvim izinleri verilmedi. Etkinlik eklemek için izinleri etkinleştirin."),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 5),
+            action: SnackBarAction(
+              label: "AYARLAR",
+              onPressed: () async {
+                await openAppSettings();
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
       setState(() {
-        _calendarStatusMessage = "Takvim izni verilmedi: $calendarStatus";
+        _calendarStatusMessage = "İzin isteme hatası: $e";
       });
+      print("İzin isteme hatası: $e");
     }
   }
 
   Future<void> _loadCalendars() async {
     try {
+      // Takvimleri getir
       var calendarsResult = await _calendarPlugin.retrieveCalendars();
+      
+      // Debug için takvimleri yazdır
+      if (calendarsResult.data != null) {
+        for (var calendar in calendarsResult.data!) {
+          print("Takvim ID: ${calendar.id}, İsim: ${calendar.name}, Hesap Adı: ${calendar.accountName}");
+        }
+      }
 
       final calList = calendarsResult.data as List<Calendar>? ?? <Calendar>[];
 
@@ -273,14 +314,37 @@ class _HomeScreenState extends State<HomeScreen> {
           _calendarStatusMessage = "Kullanılabilir takvim bulunamadı";
         } else {
           _calendarStatusMessage =
-              "Kullanılacak takvim: ${_selectedCalendar?.name ?? 'Seçilmedi'}";
+              "Kullanılacak takvim: ${_getCalendarDisplayName(_selectedCalendar)}";
         }
       });
     } catch (e) {
       setState(() {
         _calendarStatusMessage = "Takvimler yüklenirken hata: $e";
       });
+      print("Takvimler yüklenirken hata: $e");
     }
+  }
+
+  String _getCalendarDisplayName(Calendar? calendar) {
+    if (calendar == null) return 'Seçilmedi';
+    
+    // Takvim adı varsa kullan
+    if (calendar.name != null && calendar.name!.isNotEmpty) {
+      return calendar.name!;
+    }
+    
+    // Hesap adı varsa kullan
+    if (calendar.accountName != null && calendar.accountName!.isNotEmpty) {
+      return '${calendar.accountName} Takvimi';
+    }
+    
+    // Takvimin tanımı veya türü varsa kullan
+    if (calendar.isReadOnly != null) {
+      return calendar.isReadOnly! ? 'Salt Okunur Takvim' : 'Yazılabilir Takvim';
+    }
+    
+    // Hiçbir bilgi yoksa varsayılan ad
+    return 'Takvim #${calendar.id?.substring(0, 4) ?? "?"}';
   }
 
   Future<Map<String, dynamic>?> _extractEvent(String text) async {
@@ -648,9 +712,20 @@ Girdi: "Yarın toplantı"
 
   Widget _buildCalendarDropdown() {
     if (_calendars.isEmpty) {
-      return Text(
-        "Kullanılabilir takvim bulunamadı",
-        style: TextStyle(color: Colors.red),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Kullanılabilir takvim bulunamadı",
+            style: TextStyle(color: Colors.red),
+          ),
+          SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _requestCalendarPermissions,
+            icon: Icon(Icons.refresh),
+            label: Text("İzinleri Yenile"),
+          ),
+        ],
       );
     }
 
@@ -667,7 +742,7 @@ Girdi: "Yarın toplantı"
           setState(() {
             _selectedCalendar = selectedCal;
             _calendarStatusMessage =
-                "Seçilen takvim: ${selectedCal.name ?? 'İsimsiz'}";
+                "Seçilen takvim: ${_getCalendarDisplayName(selectedCal)}";
           });
         }
       },
@@ -675,7 +750,7 @@ Girdi: "Yarın toplantı"
           _calendars.map<DropdownMenuItem<String>>((Calendar calendar) {
             return DropdownMenuItem<String>(
               value: calendar.id,
-              child: Text(calendar.name ?? "İsimsiz Takvim"),
+              child: Text(_getCalendarDisplayName(calendar)),
             );
           }).toList(),
     );
