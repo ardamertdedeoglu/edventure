@@ -3,8 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/environment_config.dart';
-import 'dart:typed_data';
-import 'dart:async';
 
 class BudgetPlannerScreen extends StatefulWidget {
   const BudgetPlannerScreen({super.key});
@@ -21,44 +19,11 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
   bool _isLoading = false;
   String _errorMessage = '';
   List<TravelRecommendation> _recommendations = [];
-  Map<String, Uint8List> _cachedImages = {};
   
   @override
   void dispose() {
     _requestController.dispose();
     super.dispose();
-  }
-  
-  // Fetch and cache image data
-  Future<Uint8List?> _fetchImageData(String imageUrl) async {
-    try {
-      // Check cache first
-      if (_cachedImages.containsKey(imageUrl)) {
-        return _cachedImages[imageUrl];
-      }
-      
-      // Fetch the image
-      final response = await http.get(
-        Uri.parse(imageUrl),
-        headers: {
-          'Accept': 'image/*',
-          'Access-Control-Allow-Origin': '*',
-          'User-Agent': 'Mozilla/5.0',
-        },
-      );
-      
-      if (response.statusCode == 200) {
-        // Cache the image data
-        _cachedImages[imageUrl] = response.bodyBytes;
-        return response.bodyBytes;
-      } else {
-        print('Error fetching image: ${response.statusCode}');
-        return null;
-      }
-    } catch (e) {
-      print('Exception fetching image: $e');
-      return null;
-    }
   }
   
   // Process user request and generate recommendations
@@ -96,11 +61,6 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
         } catch (e) {
           print('Error fetching recommendations, using fallbacks: $e');
           recommendations = _generateFallbackRecommendations(analysisResult);
-        }
-        
-        // Pre-fetch images to reduce loading times
-        for (var recommendation in recommendations) {
-          _fetchImageData(recommendation.imageUrl);
         }
         
         setState(() {
@@ -309,7 +269,7 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
         cost: '$budget $currency',
         description: 'Experience the California lifestyle while working at beach resorts in San Diego. Includes accommodation near the beach, orientation program, and support throughout your stay.',
         features: ['Beach nearby', 'English practice', 'Resort work'],
-        imageUrl: 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29',
+        imageUrl: TravelRecommendation.USA_IMAGE,
       ),
       TravelRecommendation(
         title: 'Canadian Adventure Program',
@@ -318,7 +278,7 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
         cost: '${(int.tryParse(budget) ?? 3000) * 1.2} $currency',
         description: 'Work in the beautiful city of Vancouver while experiencing Canadian culture. Package includes job placement in hospitality, shared accommodation, and trips to natural parks.',
         features: ['Urban experience', 'Nature trips', 'Hospitality jobs'],
-        imageUrl: 'https://images.unsplash.com/photo-1503614472-8c93d56e92ce',
+        imageUrl: TravelRecommendation.CANADA_IMAGE,
       ),
       TravelRecommendation(
         title: 'Australian Beach Experience',
@@ -327,7 +287,7 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
         cost: '${(int.tryParse(budget) ?? 3000) * 1.5} $currency',
         description: 'Live and work on Australia\'s famous Gold Coast. Job opportunities in tourism, retail, and hospitality. Program includes visa assistance and accommodation for the first month.',
         features: ['Surf lifestyle', 'Wildlife', 'Tourism jobs'],
-        imageUrl: 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9',
+        imageUrl: TravelRecommendation.AUSTRALIA_IMAGE,
       ),
     ];
   }
@@ -532,49 +492,49 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
           // Image
           ClipRRect(
             borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-            child: FutureBuilder<Uint8List?>(
-              future: _fetchImageData(recommendation.imageUrl),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Container(
-                    height: 160,
-                    color: Colors.grey.shade200,
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF246EE9),
-                      ),
-                    ),
-                  );
-                } else if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
-                  print('Error loading image: ${snapshot.error}');
-                  return Container(
-                    height: 160,
-                    color: Colors.grey.shade300,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.image_not_supported, size: 40, color: Colors.grey),
-                          SizedBox(height: 8),
-                          Text(
-                            'Görsel yüklenemedi',
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                } else {
-                  return Image.memory(
-                    snapshot.data!,
-                    height: 160,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  );
+            child: Image.network(
+              recommendation.imageUrl,
+              height: 160,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              // Basit bir yükleme göstergesi
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) {
+                  return child;
                 }
+                return Container(
+                  height: 160,
+                  color: Colors.grey.shade200,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF246EE9),
+                    ),
+                  ),
+                );
+              },
+              // Hata durumunda yedek gösterge
+              errorBuilder: (context, error, stackTrace) {
+                print('Resim yükleme hatası: $error');
+                return Container(
+                  height: 160,
+                  color: Colors.grey.shade300,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.image_not_supported, size: 40, color: Colors.grey),
+                        SizedBox(height: 8),
+                        Text(
+                          'Görsel yüklenemedi',
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
               },
             ),
           ),
@@ -727,6 +687,14 @@ class TravelRecommendation {
   final List<String> features;
   final String imageUrl;
   
+  // Sabit resim URL'leri
+  static const String USA_IMAGE = 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29';
+  static const String CANADA_IMAGE = 'https://images.unsplash.com/photo-1503614472-8c93d56e92ce';
+  static const String AUSTRALIA_IMAGE = 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9';
+  static const String EUROPE_IMAGE = 'https://images.unsplash.com/photo-1490642914619-7955a3fd483c';
+  static const String ASIA_IMAGE = 'https://images.unsplash.com/photo-1493780474015-ba834fd0ce2f';
+  static const String DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1507608616759-54f48f0af0ee';
+  
   TravelRecommendation({
     required this.title,
     required this.location,
@@ -745,26 +713,22 @@ class TravelRecommendation {
       cost = '${cost.substring(0, 18)}...';
     }
     
-    // Use a proper fallback image URL based on location
-    String imageUrl = json['image_url'] ?? '';
-    if (imageUrl.isEmpty || imageUrl.startsWith('http://')) {
-      // Get a location-based fallback image if the original URL is empty or uses HTTP
-      String location = (json['location'] ?? '').toLowerCase();
-      
-      if (location.contains('abd') || location.contains('amerika') || location.contains('usa') || location.contains('states')) {
-        imageUrl = 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29';
-      } else if (location.contains('kanada') || location.contains('canada')) {
-        imageUrl = 'https://images.unsplash.com/photo-1503614472-8c93d56e92ce';
-      } else if (location.contains('avustralya') || location.contains('australia')) {
-        imageUrl = 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9';
-      } else if (location.contains('avrupa') || location.contains('europe')) {
-        imageUrl = 'https://images.unsplash.com/photo-1490642914619-7955a3fd483c';
-      } else if (location.contains('asya') || location.contains('asia')) {
-        imageUrl = 'https://images.unsplash.com/photo-1493780474015-ba834fd0ce2f';
-      } else {
-        // Generic travel image as last resort
-        imageUrl = 'https://images.unsplash.com/photo-1507608616759-54f48f0af0ee';
-      }
+    // Sabit bir bölgeye göre resim belirle
+    String location = (json['location'] ?? '').toLowerCase();
+    String imageUrl;
+    
+    if (location.contains('abd') || location.contains('amerika') || location.contains('usa') || location.contains('states')) {
+      imageUrl = USA_IMAGE;
+    } else if (location.contains('kanada') || location.contains('canada')) {
+      imageUrl = CANADA_IMAGE;
+    } else if (location.contains('avustralya') || location.contains('australia')) {
+      imageUrl = AUSTRALIA_IMAGE;
+    } else if (location.contains('avrupa') || location.contains('europe')) {
+      imageUrl = EUROPE_IMAGE;
+    } else if (location.contains('asya') || location.contains('asia')) {
+      imageUrl = ASIA_IMAGE;
+    } else {
+      imageUrl = DEFAULT_IMAGE;
     }
     
     return TravelRecommendation(
