@@ -381,9 +381,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 backgroundColor: Colors.green,
               ),
             );
-
-            // Profil verilerini hemen yenilemek için loadUserData çağır
-            await _loadUserData();
           } catch (e) {
             print('Firestore save error: $e');
             ScaffoldMessenger.of(context).showSnackBar(

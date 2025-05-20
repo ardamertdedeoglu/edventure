@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_gemini/flutter_gemini.dart';
 import 'package:chat_bubbles/chat_bubbles.dart';
-import '../config/environment_config.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
-  
+
   @override
   _ChatScreenState createState() => _ChatScreenState();
 }
@@ -15,11 +15,12 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<Map<String, String>> _messages = [];
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
-  final int _maxContextMessages = 10; // Maximum number of messages to keep for context
+  final int _maxContextMessages =
+      10; // Maximum number of messages to keep for context
   final gemini = Gemini.instance;
-  
+
   // System prompt to keep responses focused on work and travel topics
-  final String _systemPrompt = 'Kullanicinin work and travel, yurt disi egitimler ve kampanyalar, yurt disina cikis icin gerekli belgeler, daha onceden work and travel yapmis insanlar, niyet mektubu, cv, work and travel yapilabilecek ulke ve amerika eyaletleri konulari disinda kullanicilarin sorularina cevap vermemelisin. Eger konudan saptiklarini tespit edersen onlardan ozur dileyerek bu soruyu cevaplayamayacagini belirtmelisin';
+  final String _systemPrompt = dotenv.env['SYSTEM_PROMPT'] ?? '';
 
   @override
   void initState() {
@@ -27,14 +28,16 @@ class _ChatScreenState extends State<ChatScreen> {
     // Add welcome message
     _messages.add({
       'role': 'assistant',
-      'content': 'Merhaba! Work & Travel, yurt dışı eğitimler, vize işlemleri ve başvuru süreçleri hakkında sorularınızı yanıtlamaktan memnuniyet duyarım.',
+      'content':
+          'Merhaba! Work & Travel, yurt dışı eğitimler, vize işlemleri ve başvuru süreçleri hakkında sorularınızı yanıtlamaktan memnuniyet duyarım.',
     });
-    
+
     // Initialize Gemini API if not already initialized
     try {
       Gemini.instance;
     } catch (e) {
-      Gemini.init(apiKey: EnvironmentConfig.geminiApiKey);
+      Gemini.init(apiKey: dotenv.env['GEMINI_API_KEY'] ?? '');
+      print('Gemini API initialized with key: ${dotenv.env['GEMINI_API_KEY']}');
     }
   }
 
@@ -53,21 +56,23 @@ class _ChatScreenState extends State<ChatScreen> {
   // Build conversation context for Gemini API
   String _buildConversationContext() {
     // Calculate how many messages to include (up to the last 10)
-    final historyMessages = _messages.length > _maxContextMessages 
-        ? _messages.sublist(_messages.length - _maxContextMessages) 
-        : _messages;
-    
+    final historyMessages =
+        _messages.length > _maxContextMessages
+            ? _messages.sublist(_messages.length - _maxContextMessages)
+            : _messages;
+
     // Start with the system prompt
     String conversationContext = "$_systemPrompt\n\n";
-    
+
     // Add conversation history
-    conversationContext += "Aşağıdaki sohbet geçmişine dayanarak en son mesaja cevap ver:\n\n";
-    
+    conversationContext +=
+        "Aşağıdaki sohbet geçmişine dayanarak en son mesaja cevap ver:\n\n";
+
     for (final message in historyMessages) {
       String role = message['role'] == 'user' ? 'Kullanıcı' : 'Asistan';
       conversationContext += "$role: ${message['content']}\n\n";
     }
-    
+
     return conversationContext;
   }
 
@@ -85,16 +90,16 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     // Clear the input field
     _controller.clear();
-    
+
     _scrollToBottom();
 
     try {
       // Build the conversation context
       final conversationContext = _buildConversationContext();
-      
+
       // Send request to Gemini using the conversation context
       final response = await gemini.prompt(
-        parts: [Part.text(conversationContext)]
+        parts: [Part.text(conversationContext)],
       );
 
       if (mounted) {
@@ -125,7 +130,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    
+
     return Scaffold(
       appBar: AppBar(
         title: Text('AI Sohbet'),
@@ -140,7 +145,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 _messages.clear();
                 _messages.add({
                   'role': 'assistant',
-                  'content': 'Merhaba! Work & Travel, yurt dışı eğitimler, vize işlemleri ve başvuru süreçleri hakkında sorularınızı yanıtlamaktan memnuniyet duyarım.',
+                  'content':
+                      'Merhaba! Work & Travel, yurt dışı eğitimler, vize işlemleri ve başvuru süreçleri hakkında sorularınızı yanıtlamaktan memnuniyet duyarım.',
                 });
               });
             },
@@ -165,7 +171,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 color: Theme.of(context).primaryColor.withOpacity(0.8),
               ),
             ),
-            
+
             // Chat messages
             Expanded(
               child: ListView.builder(
@@ -189,11 +195,11 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     );
                   }
-                  
+
                   final message = _messages[index];
                   final isUser = message['role'] == 'user';
                   final text = message['content'] ?? '';
-                  
+
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12.0),
                     child: BubbleNormal(
@@ -210,7 +216,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 },
               ),
             ),
-            
+
             // Bottom message bar
             Container(
               padding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
@@ -269,7 +275,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
-  
+
   @override
   void dispose() {
     _controller.dispose();
@@ -277,9 +283,3 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 }
-
-
-
-
-
-	

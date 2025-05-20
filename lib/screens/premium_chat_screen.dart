@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:chat_bubbles/chat_bubbles.dart';
 import 'package:flutter_gemini/flutter_gemini.dart';
-import '../config/environment_config.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class PremiumChatScreen extends StatefulWidget {
   const PremiumChatScreen({super.key});
-  
+
   @override
   _PremiumChatScreenState createState() => _PremiumChatScreenState();
 }
@@ -18,16 +18,17 @@ class _PremiumChatScreenState extends State<PremiumChatScreen> {
   bool _isLoading = false;
   final int _maxContextMessages = 15; // Premium'da daha fazla bağlam
   final gemini = Gemini.instance;
-  
+
   // Premium kullanıcıları için önceden tanımlanmış kişisel bilgiler
   final Map<String, String> _userProfile = {
     'name': 'Arda Mert',
     'age': '18',
     'education': 'Yıldız Teknik Üniversitesi, Bilgisayar Mühendisliği',
     'interests': 'Yazılım geliştirme, Yapay zeka, Mobil uygulama',
-    'career_goals': 'Büyük bir teknoloji şirketinde yazılım mühendisi olarak çalışmak',
+    'career_goals':
+        'Büyük bir teknoloji şirketinde yazılım mühendisi olarak çalışmak',
     'skills': 'Flutter, Dart, Python, Javascript, Firebase',
-    'experience': '1 yıl staj deneyimi, 1 mobil uygulama projesi'
+    'experience': '1 yıl staj deneyimi, 1 mobil uygulama projesi',
   };
 
   @override
@@ -36,14 +37,16 @@ class _PremiumChatScreenState extends State<PremiumChatScreen> {
     // Premium karşılama mesajı
     _messages.add({
       'role': 'assistant',
-      'content': 'Merhaba ${_userProfile['name']}! Premium Kariyer Asistanınız olarak size nasıl yardımcı olabilirim? CV hazırlama, niyet mektubu yazma veya kariyer planlaması konularında size özel tavsiyeler sunabilirim.',
+      'content':
+          'Merhaba ${_userProfile['name']}! Premium Kariyer Asistanınız olarak size nasıl yardımcı olabilirim? CV hazırlama, niyet mektubu yazma veya kariyer planlaması konularında size özel tavsiyeler sunabilirim.',
     });
-    
+
     // Initialize Gemini API if not already initialized
     try {
       Gemini.instance;
     } catch (e) {
-      Gemini.init(apiKey: EnvironmentConfig.geminiApiKey);
+      Gemini.init(apiKey: dotenv.env['GEMINI_API_KEY'] ?? '');
+      print('Gemini API initialized with key: ${dotenv.env['GEMINI_API_KEY']}');
     }
   }
 
@@ -62,10 +65,11 @@ class _PremiumChatScreenState extends State<PremiumChatScreen> {
   // Premium kullanıcılar için gelişmiş bağlam oluşturma
   String _buildPremiumConversationContext() {
     // Daha fazla mesaj geçmişi (15 mesaj)
-    final historyMessages = _messages.length > _maxContextMessages 
-        ? _messages.sublist(_messages.length - _maxContextMessages) 
-        : _messages;
-    
+    final historyMessages =
+        _messages.length > _maxContextMessages
+            ? _messages.sublist(_messages.length - _maxContextMessages)
+            : _messages;
+
     // Kullanıcı profili bilgilerini ekleyerek kişiselleştirilmiş yanıtlar al
     String conversationContext = """
 Aşağıdaki kullanıcı profili bilgilerine göre kişiselleştirilmiş, detaylı ve profesyonel yanıtlar ver.
@@ -82,12 +86,12 @@ Deneyim: ${_userProfile['experience']}
 
 SOHBET GEÇMİŞİ:
 """;
-    
+
     for (final message in historyMessages) {
       String role = message['role'] == 'user' ? 'Kullanıcı' : 'Asistan';
       conversationContext += "$role: ${message['content']}\n\n";
     }
-    
+
     return conversationContext;
   }
 
@@ -105,16 +109,16 @@ SOHBET GEÇMİŞİ:
     });
     // Clear the input field
     _controller.clear();
-    
+
     _scrollToBottom();
 
     try {
       // Build the premium conversation context with user profile
       final conversationContext = _buildPremiumConversationContext();
-      
+
       // Send request to Gemini using the enhanced context
       final response = await gemini.prompt(
-        parts: [Part.text(conversationContext)]
+        parts: [Part.text(conversationContext)],
       );
 
       if (mounted) {
@@ -145,14 +149,12 @@ SOHBET GEÇMİŞİ:
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
           'Premium AI Asistan',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-          ),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
         backgroundColor: Color(0xFF246EE9),
         foregroundColor: Colors.white,
@@ -178,7 +180,8 @@ SOHBET GEÇMİŞİ:
                 _messages.clear();
                 _messages.add({
                   'role': 'assistant',
-                  'content': 'Merhaba ${_userProfile['name']}! Premium Kariyer Asistanınız olarak size nasıl yardımcı olabilirim? CV hazırlama, niyet mektubu yazma veya kariyer planlaması konularında size özel tavsiyeler sunabilirim.',
+                  'content':
+                      'Merhaba ${_userProfile['name']}! Premium Kariyer Asistanınız olarak size nasıl yardımcı olabilirim? CV hazırlama, niyet mektubu yazma veya kariyer planlaması konularında size özel tavsiyeler sunabilirim.',
                 });
               });
             },
@@ -230,13 +233,13 @@ SOHBET GEÇMİŞİ:
                 ],
               ),
             ),
-            
+
             // Date chip
             DateChip(
               date: now,
               color: Theme.of(context).primaryColor.withOpacity(0.8),
             ),
-            
+
             // Chat messages
             Expanded(
               child: ListView.builder(
@@ -260,11 +263,11 @@ SOHBET GEÇMİŞİ:
                       ),
                     );
                   }
-                  
+
                   final message = _messages[index];
                   final isUser = message['role'] == 'user';
                   final text = message['content'] ?? '';
-                  
+
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12.0),
                     child: BubbleNormal(
@@ -281,7 +284,7 @@ SOHBET GEÇMİŞİ:
                 },
               ),
             ),
-            
+
             // Bottom message bar with premium styling
             Container(
               padding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
@@ -306,7 +309,9 @@ SOHBET GEÇMİŞİ:
                       showModalBottomSheet(
                         context: context,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(20),
+                          ),
                         ),
                         builder: (context) => _buildQuickPromptsPanel(),
                       );
@@ -336,9 +341,7 @@ SOHBET GEÇMİŞİ:
                             ),
                           ),
                           onSubmitted: (_) => _sendMessage(),
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                          ),
+                          style: GoogleFonts.poppins(fontSize: 14),
                           maxLines: 3,
                           minLines: 1,
                         ),
@@ -359,32 +362,36 @@ SOHBET GEÇMİŞİ:
       ),
     );
   }
-  
+
   // Premium quick prompts panel
   Widget _buildQuickPromptsPanel() {
     final List<Map<String, String>> prompts = [
       {
         'title': 'CV İnceleme',
-        'prompt': 'CV\'mi inceleyip güçlü ve zayıf yönlerini belirtir misin?'
+        'prompt': 'CV\'mi inceleyip güçlü ve zayıf yönlerini belirtir misin?',
       },
       {
         'title': 'Niyet Mektubu',
-        'prompt': 'X şirketine yazılım mühendisi pozisyonu için bir niyet mektubu taslağı oluşturur musun?'
+        'prompt':
+            'X şirketine yazılım mühendisi pozisyonu için bir niyet mektubu taslağı oluşturur musun?',
       },
       {
         'title': 'Mülakat Hazırlığı',
-        'prompt': 'Yazılım mühendisliği pozisyonu için sık sorulan mülakat soruları ve cevapları nelerdir?'
+        'prompt':
+            'Yazılım mühendisliği pozisyonu için sık sorulan mülakat soruları ve cevapları nelerdir?',
       },
       {
         'title': 'Kariyer Tavsiyesi',
-        'prompt': 'Yazılım geliştirme alanında kariyerimi ilerletmek için hangi becerilere odaklanmalıyım?'
+        'prompt':
+            'Yazılım geliştirme alanında kariyerimi ilerletmek için hangi becerilere odaklanmalıyım?',
       },
       {
         'title': 'LinkedIn Profili',
-        'prompt': 'LinkedIn profilimi daha etkili hale getirmek için önerilerin neler?'
+        'prompt':
+            'LinkedIn profilimi daha etkili hale getirmek için önerilerin neler?',
       },
     ];
-    
+
     return Container(
       padding: EdgeInsets.all(20),
       child: Column(
@@ -452,7 +459,7 @@ SOHBET GEÇMİŞİ:
       ),
     );
   }
-  
+
   // Premium settings panel
   Widget _buildSettingsPanel() {
     return Container(
@@ -474,15 +481,11 @@ SOHBET GEÇMİŞİ:
             leading: Icon(Icons.person, color: Color(0xFF246EE9)),
             title: Text(
               'Profil Bilgilerini Güncelle',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w500,
-              ),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
             ),
             subtitle: Text(
               'Asistanın size özel yanıtlar vermesi için bilgilerinizi güncelleyin',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-              ),
+              style: GoogleFonts.poppins(fontSize: 12),
             ),
             onTap: () {
               // Profil güncelleme ekranı
@@ -494,15 +497,11 @@ SOHBET GEÇMİŞİ:
             leading: Icon(Icons.history, color: Color(0xFF246EE9)),
             title: Text(
               'Konuşma Geçmişi',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w500,
-              ),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
             ),
             subtitle: Text(
               'Önceki konuşmalarınızı görüntüleyin ve yönetin',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-              ),
+              style: GoogleFonts.poppins(fontSize: 12),
             ),
             onTap: () {
               // Konuşma geçmişi ekranı
@@ -514,22 +513,19 @@ SOHBET GEÇMİŞİ:
             leading: Icon(Icons.file_download, color: Color(0xFF246EE9)),
             title: Text(
               'Konuşmayı Dışa Aktar',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w500,
-              ),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
             ),
             subtitle: Text(
               'Bu konuşmayı PDF veya metin dosyası olarak kaydedin',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-              ),
+              style: GoogleFonts.poppins(fontSize: 12),
             ),
             onTap: () {
               // Dışa aktarma işlemi
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Konuşma dışa aktarıldı', 
+                  content: Text(
+                    'Konuşma dışa aktarıldı',
                     style: GoogleFonts.poppins(),
                   ),
                   backgroundColor: Colors.green,
@@ -541,11 +537,11 @@ SOHBET GEÇMİŞİ:
       ),
     );
   }
-  
+
   @override
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
   }
-} 
+}

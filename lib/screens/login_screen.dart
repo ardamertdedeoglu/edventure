@@ -77,14 +77,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Logo ve Başlık
-                  Icon(
-                    Icons.flight_takeoff,
-                    size: 70,
-                    color: Colors.blue,
-                  ),
+                  Image.asset('assets/icon/logo.png', width: 150, height: 150),
                   SizedBox(height: 24),
                   Text(
-                    'Work & Travel',
+                    'EdVenture',
                     style: GoogleFonts.montserrat(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,

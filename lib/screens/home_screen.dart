@@ -6,14 +6,13 @@ import '../services/semantic_search_service.dart';
 import '../services/auth_service.dart';
 import '../services/program_service.dart';
 import '../services/favorites_service.dart';
-import 'package:device_calendar/device_calendar.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:app_settings/app_settings.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
-import '../config/environment_config.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'calendar_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,12 +30,12 @@ class _HomeScreenState extends State<HomeScreen> {
   String searchErrorMessage = '';
   bool _useLocalData = true;
 
-  // Calendar related variables
-  final DeviceCalendarPlugin _calendarPlugin = DeviceCalendarPlugin();
-  final TextEditingController _eventController = TextEditingController();
-  List<Calendar> _calendars = [];
-  Calendar? _selectedCalendar;
-  String _calendarStatusMessage = "Henüz etkinlik eklenmedi";
+  // Firestore instance
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // Today's events variables
+  List<Event> _todaysEvents = [];
+  bool _isLoadingTodaysEvents = false;
   
   // Welcome message variables
   String _welcomeMessage = "Work & Travel yolculuğunuzda size yardımcı olmaya devam ediyoruz. Kaldığınız yerden devam edin.";
@@ -51,13 +50,12 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     tz_data.initializeTimeZones();
-    _requestCalendarPermissions();
+    _loadTodaysEvents();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _eventController.dispose();
     super.dispose();
   }
 
@@ -70,10 +68,8 @@ class _HomeScreenState extends State<HomeScreen> {
     await _programService.loadPrograms();
     _loadInitialSuggestions();
     
-    // Get auth service to check if user is logged in
     final authService = Provider.of<AuthService>(context, listen: false);
     if (authService.isAuthenticated) {
-      // Generate AI welcome message for all users
       _generateAIWelcomeMessage();
     }
 
@@ -82,14 +78,57 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
   
-  // Generate a personalized welcome message using OpenAI API
+  Future<void> _loadTodaysEvents() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingTodaysEvents = true;
+    });
+
+    try {
+      DateTime now = DateTime.now();
+      DateTime todayStart = DateTime(now.year, now.month, now.day);
+      
+      QuerySnapshot snapshot = await _firestore
+          .collection('calendar_plans')
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
+          .where('date', isLessThan: Timestamp.fromDate(todayStart.add(const Duration(days: 1))))
+          .orderBy('date')
+          .get();
+
+      List<Event> events = [];
+      for (var doc in snapshot.docs) {
+        events.add(Event.fromMap(doc.data() as Map<String, dynamic>, doc.id));
+      }
+      
+      events.sort((a, b) {
+        final startTimeA = a.startTime.hour * 60 + a.startTime.minute;
+        final startTimeB = b.startTime.hour * 60 + b.startTime.minute;
+        return startTimeA.compareTo(startTimeB);
+      });
+
+      if (mounted) {
+        setState(() {
+          _todaysEvents = events;
+          _isLoadingTodaysEvents = false;
+        });
+      }
+    } catch (e) {
+      print("Error loading today's events: $e");
+      if (mounted) {
+        setState(() {
+          _isLoadingTodaysEvents = false;
+        });
+      }
+    }
+  }
+
   Future<void> _generateAIWelcomeMessage() async {
     setState(() {
       _isLoadingWelcomeMessage = true;
     });
 
     try {
-      final apiKey = EnvironmentConfig.claudeApiKey;
+      final apiKey = dotenv.env['OPENAI_API_KEY'];
       final url = Uri.parse("https://api.openai.com/v1/chat/completions");
 
       final response = await http.post(
@@ -172,7 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         searchErrorMessage = 'Lütfen arama sorgusu girin';
       });
-      _loadInitialSuggestions(); // Load initial suggestions if search is empty
+      _loadInitialSuggestions();
       return;
     }
 
@@ -199,7 +238,6 @@ class _HomeScreenState extends State<HomeScreen> {
               _useLocalData = true;
             });
             
-            // Still load initial suggestions if authentication fails
             _loadInitialSuggestions();
             return;
           }
@@ -223,7 +261,6 @@ class _HomeScreenState extends State<HomeScreen> {
           isSearchLoading = false;
         });
         
-        // If no results found, show a message but maintain the initial suggestions
         if (results.isEmpty) {
           setState(() {
             searchErrorMessage = 'Sonuç bulunamadı. Farklı bir arama terimi deneyin.';
@@ -238,526 +275,13 @@ class _HomeScreenState extends State<HomeScreen> {
           isSearchLoading = false;
         });
         
-        // Load initial suggestions on error
         _loadInitialSuggestions();
       }
       print("Arama hatası: $e");
     }
   }
 
-  // Calendar related methods
-  Future<void> _requestCalendarPermissions() async {
-    setState(() {
-      _calendarStatusMessage = "Takvim izinleri isteniyor...";
-    });
-
-    try {
-      // Hem okuma hem de yazma izinlerini iste
-      var calendarReadStatus = await Permission.calendar.request();
-      var calendarWriteStatus = await Permission.calendarWriteOnly.request();
-      
-      print("Takvim okuma izni: $calendarReadStatus");
-      print("Takvim yazma izni: $calendarWriteStatus");
-      
-      // İzinlerin verildiği durumu kontrol et
-      if (calendarReadStatus.isGranted || calendarWriteStatus.isGranted) {
-        _loadCalendars();
-      } else {
-        setState(() {
-          _calendarStatusMessage = "Takvim izinleri verilmedi. Lütfen uygulama ayarlarından izinleri etkinleştirin.";
-        });
-        
-        // Kullanıcıya izin problemi olduğunu bildir
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Takvim izinleri verilmedi. Etkinlik eklemek için izinleri etkinleştirin."),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 5),
-            action: SnackBarAction(
-              label: "AYARLAR",
-              onPressed: () async {
-                await openAppSettings();
-              },
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() {
-        _calendarStatusMessage = "İzin isteme hatası: $e";
-      });
-      print("İzin isteme hatası: $e");
-    }
-  }
-
-  Future<void> _loadCalendars() async {
-    try {
-      // Takvimleri getir
-      var calendarsResult = await _calendarPlugin.retrieveCalendars();
-      
-      // Debug için takvimleri yazdır
-      if (calendarsResult.data != null) {
-        for (var calendar in calendarsResult.data!) {
-          print("Takvim ID: ${calendar.id}, İsim: ${calendar.name}, Hesap Adı: ${calendar.accountName}");
-        }
-      }
-
-      final calList = calendarsResult.data as List<Calendar>? ?? <Calendar>[];
-
-      setState(() {
-        _calendars = calList;
-        if (calList.isNotEmpty && _selectedCalendar == null) {
-          _selectedCalendar = calList.first;
-        }
-
-        if (calList.isEmpty) {
-          _calendarStatusMessage = "Kullanılabilir takvim bulunamadı";
-        } else {
-          _calendarStatusMessage =
-              "Kullanılacak takvim: ${_getCalendarDisplayName(_selectedCalendar)}";
-        }
-      });
-    } catch (e) {
-      setState(() {
-        _calendarStatusMessage = "Takvimler yüklenirken hata: $e";
-      });
-      print("Takvimler yüklenirken hata: $e");
-    }
-  }
-
-  String _getCalendarDisplayName(Calendar? calendar) {
-    if (calendar == null) return 'Seçilmedi';
-    
-    // Takvim adı varsa kullan
-    if (calendar.name != null && calendar.name!.isNotEmpty) {
-      return calendar.name!;
-    }
-    
-    // Hesap adı varsa kullan
-    if (calendar.accountName != null && calendar.accountName!.isNotEmpty) {
-      return '${calendar.accountName} Takvimi';
-    }
-    
-    // Takvimin tanımı veya türü varsa kullan
-    if (calendar.isReadOnly != null) {
-      return calendar.isReadOnly! ? 'Salt Okunur Takvim' : 'Yazılabilir Takvim';
-    }
-    
-    // Hiçbir bilgi yoksa varsayılan ad
-    return 'Takvim #${calendar.id?.substring(0, 4) ?? "?"}';
-  }
-
-  Future<Map<String, dynamic>?> _extractEvent(String text) async {
-    print("Extracting event from text: $text");
-    final apiKey = EnvironmentConfig.claudeApiKey;
-    final url = Uri.parse("https://api.openai.com/v1/chat/completions");
-
-    try {
-      // Pre-process the text to handle relative dates
-      Map<String, dynamic>? processedEvent = _processRelativeDates(text);
-      if (processedEvent != null) {
-        print("Local relative date processing result: $processedEvent");
-        return processedEvent;
-      }
-
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $apiKey',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          "model": "gpt-4o-mini",
-          "messages": [
-            {
-              "role": "system",
-              "content":
-                  """Kullanıcının etkinlik cümlesinden başlık, başlangıç ve bitiş zamanını çıkar. 
-Şu formatta JSON ver: {"title":"Etkinlik başlığı", "start":"yyyy-MM-dd HH:mm", "end":"yyyy-MM-dd HH:mm"}.
-
-Görevler:
-1. 'Yarın' gibi ifadeler için yarının tarihini kullan.
-2. '3 gün sonra' gibi ifadeler için uygun tarihi hesapla.
-3. Eğer bitiş zamanı verilmemişse, başlangıç zamanından 1 saat sonrası için bir bitiş zamanı belirle.
-4. Eğer başlangıç zamanı da verilmemişse, uygun bir zaman (örn. 09:00) belirle.
-5. Etkinlik başlığı verilmemişse, isteğin içeriğine göre uygun bir başlık koy.
-
-Örnek 1:
-Girdi: "Yarın saat 15:00'da iş görüşmesi var"
-Çıktı: {"title":"İş görüşmesi", "start":"2023-12-15 15:00", "end":"2023-12-15 16:00"}
-
-Örnek 2:
-Girdi: "3 gün sonra doktor randevusu"
-Çıktı: {"title":"Doktor randevusu", "start":"2023-12-17 09:00", "end":"2023-12-17 10:00"}
-
-Örnek 3:
-Girdi: "Yarın toplantı"
-Çıktı: {"title":"Toplantı", "start":"2023-12-15 09:00", "end":"2023-12-15 10:00"}
-""",
-            },
-            {"role": "user", "content": text},
-          ],
-          "temperature": 0.2,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final content = data['choices'][0]['message']['content'];
-        print("API response content: $content");
-        
-        try {
-          final Map<String, dynamic> parsedData = jsonDecode(content);
-          print("Parsed event data: $parsedData");
-          return parsedData;
-        } catch (parseError) {
-          print("JSON parse error: $parseError for content: $content");
-          setState(() {
-            _calendarStatusMessage = "JSON ayrıştırma hatası: $parseError";
-          });
-          return null;
-        }
-      } else {
-        print("API error with status code: ${response.statusCode}");
-        print("API error response: ${response.body}");
-        setState(() {
-          _calendarStatusMessage = "API Hatası: ${response.statusCode}";
-        });
-        return null;
-      }
-    } catch (e) {
-      print("Extract event error: $e");
-      setState(() {
-        _calendarStatusMessage = "İstek hatası: $e";
-      });
-      return null;
-    }
-  }
-
-  // Process relative dates locally without relying on API
-  Map<String, dynamic>? _processRelativeDates(String text) {
-    text = text.toLowerCase();
-    
-    // Initialize with current date
-    DateTime now = DateTime.now();
-    DateTime startDate = now;
-    DateTime endDate = now.add(Duration(hours: 1));
-    bool timeSpecified = false;
-    
-    try {
-      // Step 1: Parse date
-      
-      // Handle "tomorrow" (yarın)
-      if (text.contains("yarın") || text.contains("yarin")) {
-        startDate = DateTime(now.year, now.month, now.day + 1);
-      } 
-      // Handle "next week" (gelecek hafta, önümüzdeki hafta)
-      else if (text.contains("gelecek hafta") || text.contains("önümüzdeki hafta") || text.contains("haftaya")) {
-        startDate = DateTime(now.year, now.month, now.day + 7);
-      }
-      // Handle "next month" (gelecek ay, önümüzdeki ay)
-      else if (text.contains("gelecek ay") || text.contains("önümüzdeki ay")) {
-        startDate = DateTime(now.year, now.month + 1, now.day);
-      }
-      // Handle "in N days" (N gün sonra)
-      else {
-        RegExp daysLaterRegex = RegExp(r'(\d+)\s+g[üu]n sonra');
-        Match? match = daysLaterRegex.firstMatch(text);
-        if (match != null) {
-          int daysLater = int.parse(match.group(1)!);
-          startDate = DateTime(now.year, now.month, now.day + daysLater);
-        } else {
-          // No relative date found, return null to let API handle it
-          return null;
-        }
-      }
-      
-      // Step 2: Parse time
-      RegExp timeRegex = RegExp(r'(\d{1,2})[\s:\.]*(\d{0,2})');
-      Match? timeMatch = timeRegex.firstMatch(text);
-      
-      if (timeMatch != null) {
-        int hour = int.parse(timeMatch.group(1)!);
-        int minute = 0;
-        if (timeMatch.group(2) != null && timeMatch.group(2)!.isNotEmpty) {
-          minute = int.parse(timeMatch.group(2)!);
-        }
-        
-        // Check if time is valid
-        if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
-          startDate = DateTime(
-            startDate.year, 
-            startDate.month, 
-            startDate.day, 
-            hour, 
-            minute
-          );
-          timeSpecified = true;
-        }
-      }
-      
-      // If no specific time found, set default time to 9:00 AM
-      if (!timeSpecified) {
-        startDate = DateTime(
-          startDate.year,
-          startDate.month,
-          startDate.day,
-          9,
-          0
-        );
-      }
-      
-      // Set end time 1 hour later
-      endDate = startDate.add(Duration(hours: 1));
-      
-      // Step 3: Extract the event title - use simple keyword removal
-      String title = text;
-      
-      // Remove time and date related terms
-      List<String> termsToRemove = [
-        "yarın", "yarin", "bugün", "bugun", "gelecek hafta", "önümüzdeki hafta",
-        "haftaya", "gelecek ay", "önümüzdeki ay", "gün sonra", "saat", "da", "de", "ta", "te"
-      ];
-      
-      for (String term in termsToRemove) {
-        title = title.replaceAll(term, ' ');
-      }
-      
-      // Remove time patterns like "16:00", "16.00", "16", etc.
-      title = title.replaceAll(RegExp(r'\d{1,2}[\s:\.]*\d{0,2}'), ' ');
-      
-      // Clean up multiple spaces and trim
-      title = title.replaceAll(RegExp(r'\s+'), ' ').trim();
-      
-      // Remove common filler words at the beginning and end
-      List<String> fillerWords = ["var", "olacak", "yapılacak", "için", "ile"];
-      for (String word in fillerWords) {
-        if (title.startsWith("$word ")) {
-          title = title.substring(word.length + 1).trim();
-        }
-        if (title.endsWith(" $word")) {
-          title = title.substring(0, title.length - word.length - 1).trim();
-        }
-      }
-      
-      // If title is empty after all cleaning, use a generic title
-      if (title.isEmpty) {
-        title = "Hatırlatıcı";
-      }
-      
-      // Format dates as strings
-      String formatDateTime(DateTime dt) {
-        return "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} "
-             "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
-      }
-      
-      return {
-        "title": title,
-        "start": formatDateTime(startDate),
-        "end": formatDateTime(endDate)
-      };
-    } catch (e) {
-      print("Error in local date processing: $e");
-      return null;
-    }
-  }
-
-  Future<void> _handleEventCreation() async {
-    final input = _eventController.text.trim();
-    print("Handling event creation for input: '$input'");
-    
-    if (_selectedCalendar == null || input.isEmpty) {
-      print("Validation failed: Calendar selected: ${_selectedCalendar != null}, Input empty: ${input.isEmpty}");
-      setState(() {
-        _calendarStatusMessage = "Takvim seçilmedi veya metin boş";
-      });
-      return;
-    }
-
-    print("Selected calendar: ${_selectedCalendar?.name} (ID: ${_selectedCalendar?.id})");
-    setState(() {
-      _calendarStatusMessage = "Etkinlik ayıklanıyor...";
-    });
-
-    final eventData = await _extractEvent(input);
-
-    if (eventData != null) {
-      try {
-        setState(() {
-          _calendarStatusMessage = "Etkinlik oluşturuluyor...";
-        });
-        
-        // Ensure we have all required fields
-        if (eventData['title'] == null || eventData['title'].toString().trim().isEmpty) {
-          print("Missing title in event data");
-          eventData['title'] = input.length > 30 ? input.substring(0, 30) : input;
-          print("Using fallback title: ${eventData['title']}");
-        }
-
-        // Handle missing start time - use tomorrow at 9am
-        if (eventData['start'] == null || eventData['start'].toString().trim().isEmpty) {
-          print("Missing start time in event data");
-          final tomorrow = DateTime.now().add(Duration(days: 1));
-          eventData['start'] = "${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')} 09:00";
-          print("Using fallback start time: ${eventData['start']}");
-        }
-
-        // Handle missing end time - 1 hour after start
-        if (eventData['end'] == null || eventData['end'].toString().trim().isEmpty) {
-          print("Missing end time in event data");
-          final start = DateTime.parse(eventData['start'].toString().replaceAll(' ', 'T'));
-          final end = start.add(Duration(hours: 1));
-          eventData['end'] = "${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')} ${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}";
-          print("Using fallback end time: ${eventData['end']}");
-        }
-
-        // Normalize date strings for reliable parsing
-        String normalizeDateTime(String dateTimeStr) {
-          print("Normalizing date string: $dateTimeStr");
-          // Replace space with T for ISO format
-          String normalized = dateTimeStr.trim().replaceAll(' ', 'T');
-          
-          // Ensure proper formatting with padded values
-          if (!normalized.contains('T')) {
-            normalized = '${normalized}T00:00';
-          }
-          
-          // Ensure it has seconds if needed
-          if (normalized.split('T')[1].split(':').length < 3) {
-            normalized = '$normalized:00';
-          }
-          
-          print("Normalized date string: $normalized");
-          return normalized;
-        }
-
-        print("Trying to parse start date: ${eventData['start']}");
-        final startStr = normalizeDateTime(eventData['start'].toString());
-        final start = DateTime.parse(startStr);
-        
-        print("Trying to parse end date: ${eventData['end']}");
-        final endStr = normalizeDateTime(eventData['end'].toString());
-        final end = DateTime.parse(endStr);
-
-        print("Converted to DateTime - Start: $start, End: $end");
-        
-        final tzStart = tz.TZDateTime.from(start, tz.local);
-        final tzEnd = tz.TZDateTime.from(end, tz.local);
-        print("Timezone applied - TZ Start: $tzStart, TZ End: $tzEnd");
-
-        final event = Event(
-          _selectedCalendar!.id,
-          title: eventData['title'].toString(),
-          start: tzStart,
-          end: tzEnd,
-          description: "Oluşturuldu: ${DateTime.now()}",
-        );
-        print("Event created: $event");
-        print("Event details - Title: ${event.title}, Start: ${event.start}, End: ${event.end}");
-
-        final result = await _calendarPlugin.createOrUpdateEvent(event);
-        print("Calendar plugin result: $result");
-        print("Is success: ${result?.isSuccess}, Errors: ${result?.errors}");
-
-        if (result?.isSuccess == true) {
-          print("Event added successfully");
-          setState(() {
-            _calendarStatusMessage = "Etkinlik eklendi: ${event.title}";
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Etkinlik eklendi: ${event.title}"),
-              backgroundColor: Colors.green,
-            ),
-          );
-          _eventController.clear();
-        } else {
-          print("Failed to add event. Errors: ${result?.errors}");
-          final errorMsg = result?.errors.join(", ") ?? "Bilinmeyen hata";
-          setState(() {
-            _calendarStatusMessage = "Etkinlik eklenemedi: $errorMsg";
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Etkinlik eklenemedi: $errorMsg"),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } catch (e) {
-        print("Exception during event creation: $e");
-        setState(() {
-          _calendarStatusMessage = "Hata: $e";
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Etkinlik oluşturulurken hata: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } else {
-      print("Failed to extract event data from input text");
-      setState(() {
-        _calendarStatusMessage = "Etkinlik bilgileri ayıklanamadı";
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Etkinlik bilgileri ayıklanamadı"),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
-  }
-
-  Widget _buildCalendarDropdown() {
-    if (_calendars.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Kullanılabilir takvim bulunamadı",
-            style: TextStyle(color: Colors.red),
-          ),
-          SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _requestCalendarPermissions,
-            icon: Icon(Icons.refresh),
-            label: Text("İzinleri Yenile"),
-          ),
-        ],
-      );
-    }
-
-    return DropdownButton<String>(
-      hint: Text("Takvim Seçin"),
-      value: _selectedCalendar?.id,
-      isExpanded: true,
-      onChanged: (String? newValue) {
-        if (newValue != null) {
-          final selectedCal = _calendars.firstWhere(
-            (cal) => cal.id == newValue,
-            orElse: () => _calendars.first,
-          );
-          setState(() {
-            _selectedCalendar = selectedCal;
-            _calendarStatusMessage =
-                "Seçilen takvim: ${_getCalendarDisplayName(selectedCal)}";
-          });
-        }
-      },
-      items:
-          _calendars.map<DropdownMenuItem<String>>((Calendar calendar) {
-            return DropdownMenuItem<String>(
-              value: calendar.id,
-              child: Text(_getCalendarDisplayName(calendar)),
-            );
-          }).toList(),
-    );
-  }
-
   Widget _buildSearchResultCard(SearchResult result, {bool disableTap = false}) {
-    // Split description to get metadata
     final String mainDescription = result.description.split('\n\n').first;
     final String metadata =
         result.description.contains('\n\n')
@@ -773,7 +297,6 @@ Girdi: "Yarın toplantı"
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title
             Text(
               result.title,
               style: TextStyle(
@@ -786,7 +309,6 @@ Girdi: "Yarın toplantı"
             ),
             Divider(height: 16),
 
-            // Main Description
             Text(
               mainDescription,
               style: TextStyle(fontSize: 14),
@@ -795,7 +317,6 @@ Girdi: "Yarın toplantı"
             ),
             SizedBox(height: 16),
 
-            // Metadata (if available)
             if (metadata.isNotEmpty)
               Container(
                 padding: EdgeInsets.all(10),
@@ -825,7 +346,6 @@ Girdi: "Yarın toplantı"
       ),
     );
     
-    // Return the card with or without tap behavior
     return disableTap 
         ? cardContent 
         : GestureDetector(
@@ -834,7 +354,6 @@ Girdi: "Yarın toplantı"
           );
   }
 
-  // Show detailed program view in full screen
   void _showProgramDetails(SearchResult result) async {
     final authService = Provider.of<AuthService>(context, listen: false);
     bool isInFavorites = false;
@@ -848,7 +367,7 @@ Girdi: "Yarın toplantı"
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => Dialog(
-          insetPadding: EdgeInsets.zero, // Full screen dialog
+          insetPadding: EdgeInsets.zero,
           child: Scaffold(
             appBar: AppBar(
               title: Text('Program Detayı', style: GoogleFonts.poppins(
@@ -876,7 +395,6 @@ Girdi: "Yarın toplantı"
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Program title
                       Text(
                         result.title,
                         style: GoogleFonts.poppins(
@@ -887,7 +405,6 @@ Girdi: "Yarın toplantı"
                       ),
                       SizedBox(height: 24),
                       
-                      // Program description
                       Container(
                         padding: EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -931,7 +448,6 @@ Girdi: "Yarın toplantı"
                       ),
                       SizedBox(height: 24),
                       
-                      // Program metadata
                       if (result.description.contains('\n\n')) ...[
                         Container(
                           padding: EdgeInsets.all(16),
@@ -979,7 +495,6 @@ Girdi: "Yarın toplantı"
                       
                       SizedBox(height: 30),
                       
-                      // Action buttons
                       Row(
                         children: [
                           Expanded(
@@ -1000,7 +515,6 @@ Girdi: "Yarın toplantı"
                                 bool success = false;
                                 
                                 if (isInFavorites) {
-                                  // Remove from favorites
                                   success = await favoritesService.removeFromFavorites(
                                     authService.user!.uid, result.id);
                                   if (success) {
@@ -1013,7 +527,6 @@ Girdi: "Yarın toplantı"
                                     );
                                   }
                                 } else {
-                                  // Add to favorites
                                   success = await favoritesService.addToFavorites(
                                     authService.user!.uid, result);
                                   if (success) {
@@ -1049,7 +562,6 @@ Girdi: "Yarın toplantı"
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () {
-                                // Implement share functionality
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(content: Text(
                                     'Paylaşım özelliği yakında',
@@ -1085,15 +597,186 @@ Girdi: "Yarın toplantı"
     );
   }
 
+  void _showEventDetailsDialog(Event event) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
+          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          actionsPadding: const EdgeInsets.fromLTRB(0, 0, 24, 16),
+          title: Text(event.title, style: GoogleFonts.poppins(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold, fontSize: 20)),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (event.description.isNotEmpty) ...[
+                  Text('Açıklama:', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15)),
+                  const SizedBox(height: 4),
+                  Text(event.description, style: GoogleFonts.poppins(fontSize: 14)),
+                  const SizedBox(height: 12),
+                ],
+                Text('Başlangıç:', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15)),
+                const SizedBox(height: 4),
+                Text(event.startTime.format(context), style: GoogleFonts.poppins(fontSize: 14)),
+                const SizedBox(height: 12),
+                Text('Bitiş:', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15)),
+                const SizedBox(height: 4),
+                Text(event.endTime.format(context), style: GoogleFonts.poppins(fontSize: 14)),
+                const SizedBox(height: 12),
+                Text('Tarih:', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15)),
+                const SizedBox(height: 4),
+                Text(MaterialLocalizations.of(context).formatShortDate(event.date), style: GoogleFonts.poppins(fontSize: 14)),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Kapat', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Theme.of(context).primaryColor)),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  Widget _buildTodaysPlansSection() {
+    return Card(
+      elevation: 5,
+      margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(18.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.today_outlined, color: Theme.of(context).primaryColorDark, size: 26),
+                    const SizedBox(width: 12),
+                    Text(
+                      "Bugünün Planları",
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).primaryColorDark,
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon: Icon(Icons.refresh_rounded, color: Theme.of(context).primaryColor),
+                  onPressed: _loadTodaysEvents,
+                  tooltip: "Yenile",
+                )
+              ],
+            ),
+            const SizedBox(height: 20),
+            if (_isLoadingTodaysEvents)
+              const Center(child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 20.0),
+                child: CircularProgressIndicator(),
+              ))
+            else if (_todaysEvents.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 30.0, horizontal: 10.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.event_available_outlined, size: 50, color: Colors.grey.shade400),
+                      const SizedBox(height: 15),
+                      Text(
+                        "Bugun icin planiniz bulunmuyor.\nHarika bir gun gecirin!",
+                        style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _todaysEvents.length,
+                itemBuilder: (context, index) {
+                  final event = _todaysEvents[index];
+                  return InkWell(
+                    onTap: () => _showEventDetailsDialog(event),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 16.0),
+                      decoration: BoxDecoration(
+                         // Optional: Add a subtle background or border per item
+                         // color: Colors.grey.shade50, 
+                         // borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.lens_blur_rounded, color: Theme.of(context).primaryColor, size: 20),
+                          const SizedBox(width: 15),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(event.title, style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16.5)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  "${event.startTime.format(context)} - ${event.endTime.format(context)}",
+                                  style: GoogleFonts.poppins(color: Colors.grey.shade700, fontSize: 13.5),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+                separatorBuilder: (context, index) => Divider(height: 1, indent: 15, endIndent: 15, color: Colors.grey.shade200),
+              ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CalendarScreen()),
+                ).then((_) => _loadTodaysEvents());
+              },
+              icon: const Icon(Icons.calendar_month_rounded, size: 20),
+              label: Text('Tam Takvimi Görüntüle / Plan Ekle', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15)),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Get the auth service to check if user is new
     final authService = Provider.of<AuthService>(context);
     final bool isNewUser = authService.isNewUser;
     
-    // Clear new user flag after showing welcome message
     if (isNewUser) {
-      // Use Future.delayed to avoid calling setState during build
       Future.delayed(Duration.zero, () {
         authService.clearNewUserFlag();
       });
@@ -1103,19 +786,18 @@ Girdi: "Yarın toplantı"
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Welcome Header
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Container(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(10),
+                  color: Theme.of(context).primaryColorLight.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(18),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
@@ -1127,43 +809,44 @@ Girdi: "Yarın toplantı"
                         Expanded(
                           child: Text(
                             isNewUser ? 'Hoş Geldiniz!' : 'Selam!',
-                            style: TextStyle(
-                              fontSize: 24,
+                            style: GoogleFonts.poppins(
+                              fontSize: 26,
                               fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade800,
+                              color: Theme.of(context).primaryColorDark,
                             ),
                           ),
                         ),
                         if (!isNewUser)
                           Icon(
-                            Icons.auto_awesome, 
-                            color: Colors.amber,
-                            size: 20,
+                            Icons.auto_awesome_rounded,
+                            color: Colors.amber.shade700,
+                            size: 28,
                           ),
                       ],
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     _isLoadingWelcomeMessage
                       ? Center(
-                          child: SizedBox(
-                            height: 40,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 15.0),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 SizedBox(
-                                  width: 20,
-                                  height: 20,
+                                  width: 22,
+                                  height: 22,
                                   child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.blue.shade700,
+                                    strokeWidth: 2.5,
+                                    color: Theme.of(context).primaryColor,
                                   ),
                                 ),
-                                SizedBox(width: 12),
+                                const SizedBox(width: 16),
                                 Text(
                                   "Mesajınız hazırlanıyor...",
-                                  style: TextStyle(
-                                    color: Colors.blue.shade700,
+                                  style: GoogleFonts.poppins(
+                                    color: Theme.of(context).primaryColorDark,
                                     fontStyle: FontStyle.italic,
+                                    fontSize: 14,
                                   ),
                                 ),
                               ],
@@ -1177,22 +860,20 @@ Girdi: "Yarın toplantı"
                               isNewUser 
                                 ? 'Çalışma ve seyahat deneyiminizi yönetmek için uygulamanın ana özelliklerini keşfedin.'
                                 : _welcomeMessage,
-                              style: TextStyle(fontSize: 14, color: Colors.black87),
+                              style: GoogleFonts.poppins(fontSize: 14.5, color: Colors.black87, height: 1.5),
                             ),
-                            if (!isNewUser) ...[
-                              SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    "Powered by AI",
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontStyle: FontStyle.italic,
-                                      color: Colors.grey.shade600,
-                                    ),
+                            if (!isNewUser && _welcomeMessage.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  " ✨ Powered by AI",
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.grey.shade700,
                                   ),
-                                ],
+                                ),
                               ),
                             ],
                           ],
@@ -1202,99 +883,129 @@ Girdi: "Yarın toplantı"
               ),
             ),
 
-            // Search Section
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Card(
-                elevation: 4,
+                elevation: 5,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: BorderRadius.circular(18),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(18.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.search, color: Colors.blue.shade700),
-                          SizedBox(width: 10),
+                          Icon(Icons.search_rounded, color: Theme.of(context).primaryColorDark, size: 26),
+                          const SizedBox(width: 12),
                           Text(
                             'Program Ara',
-                            style: TextStyle(
-                              fontSize: 18,
+                            style: GoogleFonts.poppins(
+                              fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade800,
+                              color: Theme.of(context).primaryColorDark,
                             ),
                           ),
                         ],
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 18),
                       TextField(
                         controller: _searchController,
+                        style: GoogleFonts.poppins(fontSize: 15),
                         decoration: InputDecoration(
                           hintText: 'Program veya kategori ara...',
-                          prefixIcon: Icon(Icons.search),
+                          hintStyle: GoogleFonts.poppins(color: Colors.grey.shade600),
+                          prefixIcon: Icon(Icons.search_outlined, color: Colors.grey.shade600),
+                          filled: true,
+                          fillColor: Colors.grey.shade100.withOpacity(0.5),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
                           ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 1.5),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 12.0),
                           suffixIcon: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (_searchController.text.isNotEmpty)
                                 IconButton(
-                                  icon: Icon(Icons.clear),
+                                  icon: Icon(Icons.clear_rounded, color: Colors.grey.shade600),
                                   onPressed: () {
                                     _searchController.clear();
-                                    _loadInitialSuggestions(); // Reload initial suggestions
+                                    _loadInitialSuggestions();
                                   },
                                 ),
                               IconButton(
-                                icon: Icon(Icons.send),
+                                icon: Icon(Icons.arrow_forward_ios_rounded, color: Theme.of(context).primaryColor),
                                 onPressed: performSearch,
+                                iconSize: 20,
                               ),
                             ],
                           ),
                         ),
                         onChanged: (value) {
-                          // If search field is empty, reload initial suggestions
                           if (value.isEmpty) {
                             _loadInitialSuggestions();
                           }
                         },
                         onSubmitted: (_) => performSearch(),
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 18),
                       if (isSearchLoading)
-                        Center(child: CircularProgressIndicator())
-                      else if (searchErrorMessage.isNotEmpty)
-                        Text(
-                          searchErrorMessage,
-                          style: TextStyle(color: Colors.red),
+                        const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 15.0), child: CircularProgressIndicator()))
+                      else if (searchErrorMessage.isNotEmpty && searchResults.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 15.0),
+                          child: Center(
+                            child: Text(
+                              searchErrorMessage,
+                              style: GoogleFonts.poppins(color: Colors.red.shade700, fontSize: 14),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                         )
                       else if (searchResults.isNotEmpty)
                         SizedBox(
-                          height: 200, // Fixed height for search results
+                          height: 220,
                           child: ListView.builder(
                             shrinkWrap: true,
-                            itemCount:
-                                searchResults.length > 2
-                                    ? 2
-                                    : searchResults.length,
+                            itemCount: searchResults.length > 2 ? 2 : searchResults.length,
                             itemBuilder: (context, index) {
-                              return _buildSearchResultCard(
-                                searchResults[index],
-                              );
+                              return _buildSearchResultCard(searchResults[index]);
                             },
                           ),
+                        )
+                      else if (searchResults.isEmpty && _searchController.text.isNotEmpty)
+                         Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 15.0),
+                          child: Center(
+                            child: Text(
+                              "Aradığınız kriterlere uygun program bulunamadı.",
+                              style: GoogleFonts.poppins(color: Colors.grey.shade700, fontSize: 14),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                         ),
+
 
                       if (searchResults.length > 2)
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
-                            icon: Icon(Icons.arrow_forward),
-                            label: Text('Tüm Sonuçları Gör'),
+                            icon: const Icon(Icons.read_more_rounded, size: 20),
+                            label: Text('Tüm Sonuçları Gör', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              foregroundColor: Theme.of(context).primaryColor,
+                            ),
                             onPressed: () {
                               showDialog(
                                 context: context,
@@ -1336,9 +1047,7 @@ Girdi: "Yarın toplantı"
                                                     itemBuilder: (context, index) {
                                                       return GestureDetector(
                                                         onTap: () {
-                                                          // Close the current dialog first
                                                           Navigator.pop(context);
-                                                          // Then show the program details
                                                           _showProgramDetails(searchResults[index]);
                                                         },
                                                         child: _buildSearchResultCard(
@@ -1365,137 +1074,7 @@ Girdi: "Yarın toplantı"
               ),
             ),
 
-            // Calendar Section
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_month,
-                            color: Colors.blue.shade700,
-                          ),
-                          SizedBox(width: 10),
-                          Text(
-                            'Etkinlik Ekle',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade800,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-                      _buildCalendarDropdown(),
-                      SizedBox(height: 16),
-                      TextField(
-                        controller: _eventController,
-                        decoration: InputDecoration(
-                          hintText:
-                              'Örnek: "Yarın saat 15:00\'da iş görüşmesi var" veya "15 Ocak 2024 10:00-11:30 toplantı"',
-                          helperText: 'Tarih ve saat belirtmeyi unutmayın',
-                          helperStyle: TextStyle(fontStyle: FontStyle.italic),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide(color: Color(0xFF246EE9), width: 2),
-                          ),
-                          prefixIcon: Icon(Icons.event_note),
-                          suffixIcon: IconButton(
-                            icon: Icon(Icons.clear),
-                            onPressed: () {
-                              _eventController.clear();
-                            },
-                          ),
-                        ),
-                        maxLines: 2,
-                      ),
-                      SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: _handleEventCreation,
-                        icon: Icon(Icons.add),
-                        label: Text('Etkinliği Takvime Ekle'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: Size(double.infinity, 50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      Container(
-                        padding: EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: _calendarStatusMessage.contains("eklendi") ? Colors.green.shade50 : 
-                                _calendarStatusMessage.contains("hata") || _calendarStatusMessage.contains("eklenemedi") ? Colors.red.shade50 : 
-                                Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: _calendarStatusMessage.contains("eklendi") ? Colors.green.shade300 : 
-                                  _calendarStatusMessage.contains("hata") || _calendarStatusMessage.contains("eklenemedi") ? Colors.red.shade300 : 
-                                  Colors.blue.shade300,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  _calendarStatusMessage.contains("eklendi") ? Icons.check_circle : 
-                                  _calendarStatusMessage.contains("hata") || _calendarStatusMessage.contains("eklenemedi") ? Icons.error : 
-                                  Icons.info,
-                                  color: _calendarStatusMessage.contains("eklendi") ? Colors.green : 
-                                        _calendarStatusMessage.contains("hata") || _calendarStatusMessage.contains("eklenemedi") ? Colors.red : 
-                                        Colors.blue,
-                                  size: 20,
-                                ),
-                                SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _calendarStatusMessage,
-                                    style: TextStyle(
-                                      color: _calendarStatusMessage.contains("eklendi") ? Colors.green.shade800 : 
-                                            _calendarStatusMessage.contains("hata") || _calendarStatusMessage.contains("eklenemedi") ? Colors.red.shade800 : 
-                                            Colors.blue.shade800,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (_calendarStatusMessage.contains("eklenemedi") || _calendarStatusMessage.contains("hata"))
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8.0, left: 28),
-                                child: Text(
-                                  "Not: Samsung takvimlerinde gecikme olabilir. Lütfen birkaç dakika bekleyip takvim uygulamanızı kontrol edin.",
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontStyle: FontStyle.italic,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            _buildTodaysPlansSection(),
           ],
         ),
       ),

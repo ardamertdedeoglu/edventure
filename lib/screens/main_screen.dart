@@ -9,6 +9,7 @@ import 'cv_review_screen.dart';
 import 'budget_planner_screen.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import 'calendar_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -70,10 +71,11 @@ class _MainScreenState extends State<MainScreen> {
     'tasks': const TodoScreen(),
     'cv_review': const CVReviewScreen(),
     'budget_planner': const BudgetPlannerScreen(),
+    'calendar': const CalendarScreen(),
   };
   
   // Main screens for bottom navigation
-  final List<String> _mainViews = ['home', 'profile', 'premium'];
+  final List<String> _mainViews = ['home', 'profile', 'premium', 'calendar'];
 
   // Handle bottom navigation bar taps
   void _onBottomNavTapped(int index) {
@@ -136,6 +138,9 @@ class _MainScreenState extends State<MainScreen> {
       case 'budget_planner':
         title = 'Bütçe Planlayıcı';
         break;
+      case 'calendar':
+        title = 'Takvim';
+        break;
       default:
         title = 'Work & Travel';
     }
@@ -163,7 +168,7 @@ class _MainScreenState extends State<MainScreen> {
         ),
         actions: [
           // Show chat button in Home, Tasks, or CV Review screens
-          if (_currentView == 'home' || _currentView == 'tasks' || _currentView == 'cv_review')
+          if (_currentView == 'home' || _currentView == 'tasks' || _currentView == 'cv_review' || _currentView == 'calendar')
             IconButton(
               icon: Icon(Icons.chat),
               onPressed: () {
@@ -390,17 +395,22 @@ class _MainScreenState extends State<MainScreen> {
               // Home tab
               BottomNavigationBarItem(
                 icon: Icon(Icons.home),
-                label: 'Ana Sayfa',
+                label: '',
               ),
               // Profile tab
               BottomNavigationBarItem(
                 icon: Icon(Icons.person),
-                label: 'Profil',
+                label: '',
               ),
               // Premium tab
               BottomNavigationBarItem(
                 icon: Icon(Icons.workspace_premium),
-                label: 'Premium',
+                label: '',
+              ),
+              // Calendar tab
+              BottomNavigationBarItem(
+                icon: Icon(Icons.calendar_month),
+                label: '',
               ),
             ],
             type: BottomNavigationBarType.fixed,
@@ -408,8 +418,7 @@ class _MainScreenState extends State<MainScreen> {
             selectedItemColor: Color(0xFF246EE9),
             unselectedItemColor: Colors.grey.shade600,
             showUnselectedLabels: true,
-            backgroundColor: Colors.white,
-            elevation: 8,
+            elevation: 4,
             onTap: _onBottomNavTapped,
           ),
     );
