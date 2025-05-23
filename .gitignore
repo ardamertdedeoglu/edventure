@@ -50,3 +50,5 @@ node_modules
 # Environment configuration files
 lib/config/environment_config.dart
 
+# Firebase credentials
+lib/data/hackathon-app-project-firebase-adminsdk-fbsvc-ea16fa574e.json
