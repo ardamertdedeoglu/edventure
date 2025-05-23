@@ -56,7 +56,7 @@ class ProgramService {
           return SearchResult(
             id: program.title.hashCode.toString(),
             title: program.title,
-            description: '${program.description}\n\nLocation: ${program.location} | Duration: ${program.duration} | Price: \$${program.price} | Language: ${program.language}',
+            description: '${program.description}\n\nKonum: ${program.location} | Süre: ${program.duration} | Fiyat: \$${program.price} | Dil: ${program.language}',
             similarity: item['score'] as double,
           );
         })

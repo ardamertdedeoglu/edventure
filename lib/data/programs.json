@@ -1,83 +1,83 @@
 [
     {
-      "title": "Oxford Summer Language Program",
-      "description": "A 4-week English immersion program at Oxford University, designed for international students to improve their academic language skills.",
-      "location": "United Kingdom",
-      "duration": "4 weeks",
+      "title": "Oxford Yaz Dil Programı",
+      "description": "Oxford Üniversitesi'nde uluslararası öğrencilerin akademik dil becerilerini geliştirmeleri için tasarlanmış 4 haftalık bir İngilizce yoğunlaştırılmış program.",
+      "location": "Birleşik Krallık",
+      "duration": "4 hafta",
       "price": 3200,
-      "language": "English"
+      "language": "İngilizce"
     },
     {
-      "title": "Tokyo Tech Research Internship",
-      "description": "A hands-on internship program for undergraduate students interested in engineering and technology research, hosted by Tokyo Institute of Technology.",
-      "location": "Japan",
-      "duration": "2 months",
+      "title": "Tokyo Teknoloji Araştırma Stajı",
+      "description": "Tokyo Teknoloji Enstitüsü tarafından düzenlenen, mühendislik ve teknoloji araştırmalarına ilgi duyan lisans öğrencileri için uygulamalı bir staj programı.",
+      "location": "Japonya",
+      "duration": "2 ay",
       "price": 0,
-      "language": "English, Japanese"
+      "language": "İngilizce, Japonca"
     },
     {
-      "title": "Harvard Innovation Bootcamp",
-      "description": "An intensive entrepreneurship program designed to teach innovation and startup principles through practical team-based challenges at Harvard University.",
-      "location": "United States",
-      "duration": "3 weeks",
+      "title": "Harvard İnovasyon Yoğun Eğitim Kampı",
+      "description": "Harvard Üniversitesi'nde pratik takım tabanlı zorluklar aracılığıyla inovasyon ve startup prensiplerini öğretmek üzere tasarlanmış yoğun bir girişimcilik programı.",
+      "location": "Amerika Birleşik Devletleri",
+      "duration": "3 hafta",
       "price": 5800,
-      "language": "English"
+      "language": "İngilizce"
     },
     {
-      "title": "Berlin Summer Art Workshop",
-      "description": "A creative visual arts program for students and aspiring artists, featuring workshops and exhibitions in the heart of Berlin.",
-      "location": "Germany",
-      "duration": "5 weeks",
+      "title": "Berlin Yaz Sanat Atölyesi",
+      "description": "Berlin'in kalbinde atölye çalışmaları ve sergiler içeren, öğrenciler ve gelecek vadeden sanatçılar için yaratıcı bir görsel sanatlar programı.",
+      "location": "Almanya",
+      "duration": "5 hafta",
       "price": 2100,
-      "language": "English, German"
+      "language": "İngilizce, Almanca"
     },
     {
-      "title": "Paris Summer Language Program",
-      "description": "A 4-week French immersion program at the Sorbonne University, designed for international students to improve their academic language skills.",
-      "location": "France",
-      "duration": "4 weeks",
+      "title": "Paris Yaz Dil Programı",
+      "description": "Sorbonne Üniversitesi'nde uluslararası öğrencilerin akademik dil becerilerini geliştirmeleri için tasarlanmış 4 haftalık bir Fransızca yoğunlaştırılmış program.",
+      "location": "Fransa",
+      "duration": "4 hafta",
       "price": 3500,
-      "language": "English, French"
+      "language": "İngilizce, Fransızca"
     },
     {
-      "title": "Seoul Tech & Culture Exchange",
-      "description": "A unique 6-week program combining technology workshops with Korean language and culture immersion, hosted by KAIST.",
-      "location": "South Korea",
-      "duration": "6 weeks",
+      "title": "Seul Teknoloji ve Kültür Değişimi",
+      "description": "KAIST tarafından düzenlenen, teknoloji atölyelerini Kore dili ve kültürü yoğunlaştırmasıyla birleştiren 6 haftalık benzersiz bir program.",
+      "location": "Güney Kore",
+      "duration": "6 hafta",
       "price": 2900,
-      "language": "English, Korean"
+      "language": "İngilizce, Korece"
     },
     {
-      "title": "Barcelona Digital Design Camp",
-      "description": "A 3-week summer camp focused on UI/UX design, digital tools, and creative thinking, held in one of Europe’s most artistic cities.",
-      "location": "Spain",
-      "duration": "3 weeks",
+      "title": "Barselona Dijital Tasarım Kampı",
+      "description": "Avrupa'nın en sanatsal şehirlerinden birinde düzenlenen, UI/UX tasarımı, dijital araçlar ve yaratıcı düşünmeye odaklanan 3 haftalık bir yaz kampı.",
+      "location": "İspanya",
+      "duration": "3 hafta",
       "price": 2700,
-      "language": "English, Spanish"
+      "language": "İngilizce, İspanyolca"
     },
     {
-      "title": "Toronto AI & Robotics Bootcamp",
-      "description": "An intensive program introducing high school and undergraduate students to artificial intelligence and robotics through hands-on labs and challenges.",
-      "location": "Canada",
-      "duration": "4 weeks",
+      "title": "Toronto Yapay Zeka ve Robotik Yoğun Eğitim Kampı",
+      "description": "Lise ve üniversite öğrencilerine uygulamalı laboratuvarlar ve zorluklar aracılığıyla yapay zeka ve robotiği tanıtan yoğun bir program.",
+      "location": "Kanada",
+      "duration": "4 hafta",
       "price": 3400,
-      "language": "English"
+      "language": "İngilizce"
     },
     {
-      "title": "Cape Town Marine Biology Expedition",
-      "description": "A research-focused summer expedition exploring marine ecosystems along the South African coast, including scuba diving certification.",
-      "location": "South Africa",
-      "duration": "5 weeks",
+      "title": "Cape Town Deniz Biyolojisi Keşif Gezisi",
+      "description": "Güney Afrika kıyıları boyunca deniz ekosistemlerini keşfeden, tüplü dalış sertifikası içeren, araştırma odaklı bir yaz keşif gezisi.",
+      "location": "Güney Afrika",
+      "duration": "5 hafta",
       "price": 3800,
-      "language": "English"
+      "language": "İngilizce"
     },
     {
-      "title": "Helsinki Game Development Lab",
-      "description": "A collaborative program for aspiring game developers, offering mentorship in Unity and Unreal Engine development in Finland’s startup capital.",
-      "location": "Finland",
-      "duration": "4 weeks",
+      "title": "Helsinki Oyun Geliştirme Laboratuvarı",
+      "description": "Finlandiya'nın startup başkentinde Unity ve Unreal Engine geliştirmede mentorluk sunan, gelecek vadeden oyun geliştiricileri için işbirlikçi bir program.",
+      "location": "Finlandiya",
+      "duration": "4 hafta",
       "price": 3100,
-      "language": "English, Finnish"
+      "language": "İngilizce, Fince"
     }
   ]
   

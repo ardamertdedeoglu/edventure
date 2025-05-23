@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -21,6 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final ImagePicker _picker = ImagePicker();
   final FavoritesService _favoritesService = FavoritesService();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   final _formKey = GlobalKey<FormState>();
 
@@ -29,13 +31,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _universityController = TextEditingController();
   final TextEditingController _departmentController = TextEditingController();
   final TextEditingController _classController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _skillsController = TextEditingController();
+  final TextEditingController _experienceController = TextEditingController();
+  final TextEditingController _interestsController = TextEditingController();
+  final TextEditingController _careerGoalsController = TextEditingController();
+
+  // New state for chip editing
+  List<String> _editingSkills = [];
+  List<String> _editingInterests = [];
+  final TextEditingController _skillsChipInputController =
+      TextEditingController();
+  final TextEditingController _interestsChipInputController =
+      TextEditingController();
 
   String? _selectedCountry;
   String? _selectedState;
   String? _userName;
   File? _profileImage;
   String? _profileImageUrl;
-  bool _isLoading = false;
+  bool _isLoading = true;
   bool _isEditing = false;
   Map<String, dynamic>? _userData;
 
@@ -117,80 +132,109 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'Wyoming',
   ];
 
+  User? _currentUser;
+  String _errorMessage = '';
+
   @override
   void initState() {
     super.initState();
-    
-    _loadUserData();
-    _loadFavoritePrograms();
-    
+
+    _currentUser = _auth.currentUser;
+    if (_currentUser != null) {
+      _loadUserProfile();
+    } else {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = "Kullanici bulunamadi. Lutfen giris yapin.";
+      });
+    }
+
     // Add a listener to the AuthService to refresh when updates happen
     final authService = Provider.of<AuthService>(context, listen: false);
-    authService.addListener(_handleProfileUpdates);
+    authService.addListener(_onAuthChange);
   }
-  
+
   @override
   void dispose() {
     _ageController.dispose();
     _universityController.dispose();
     _departmentController.dispose();
     _classController.dispose();
-    
+    _nameController.dispose();
+    _skillsController.dispose();
+    _experienceController.dispose();
+    _interestsController.dispose();
+    _careerGoalsController.dispose();
+    _skillsChipInputController.dispose();
+    _interestsChipInputController.dispose();
+
     // Remove the listener when the widget is disposed
     final authService = Provider.of<AuthService>(context, listen: false);
-    authService.removeListener(_handleProfileUpdates);
-    
+    authService.removeListener(_onAuthChange);
+
     super.dispose();
   }
-  
+
   // Handler for profile updates from other screens
-  void _handleProfileUpdates() {
-    if (mounted) {
-      _loadUserData();
-      _loadFavoritePrograms();
+  void _onAuthChange() {
+    // When auth changes (e.g., profile update notification from AuthService),
+    // reload user data.
+    if (_currentUser != null && mounted) {
+      _loadUserProfile();
     }
   }
 
-  Future<void> _loadUserData() async {
+  Future<void> _loadUserProfile() async {
+    if (_currentUser == null) return;
     setState(() {
       _isLoading = true;
+      _errorMessage = '';
     });
-
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      if (authService.user != null) {
-        final userId = authService.user!.uid;
+      DocumentSnapshot userDoc =
+          await _firestore.collection('users').doc(_currentUser!.uid).get();
+      if (userDoc.exists) {
+        Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
+        _nameController.text = data['name'] ?? '';
+        _ageController.text = data['age']?.toString() ?? '';
+        _departmentController.text = data['department'] ?? '';
 
-        // Kullanıcı adını al
-        _userName = await authService.getUserName();
+        // Populate controllers for view mode and initial chip editing lists
+        _skillsController.text =
+            (data['skills'] is List)
+                ? (data['skills'] as List<dynamic>).join(', ')
+                : (data['skills'] ?? '');
+        _editingSkills =
+            (data['skills'] is List) ? List<String>.from(data['skills']) : [];
 
-        // Check if user document exists in Firestore
-        final userDoc = await _firestore.collection('users').doc(userId).get();
+        _experienceController.text = data['experience'] ?? '';
 
-        if (userDoc.exists) {
-          setState(() {
-            _userData = userDoc.data();
+        _interestsController.text =
+            (data['interests'] is List)
+                ? (data['interests'] as List<dynamic>).join(', ')
+                : (data['interests'] ?? '');
+        _editingInterests =
+            (data['interests'] is List)
+                ? List<String>.from(data['interests'])
+                : [];
 
-            // Populate form fields with existing data
-            _ageController.text = _userData?['age']?.toString() ?? '';
-            _universityController.text = _userData?['university'] ?? '';
-            _departmentController.text = _userData?['department'] ?? '';
-            _classController.text = _userData?['class'] ?? '';
-            _selectedCountry = _userData?['country'];
-            _selectedState = _userData?['state'];
-            _profileImageUrl = _userData?['profileImageUrl'];
-          });
-        }
+        _careerGoalsController.text = data['career_goals'] ?? '';
+        _userName = data['name'];
+        _selectedCountry = data['country'];
+        _selectedState = data['state'];
+        _profileImageUrl = data['profileImageUrl'];
       }
     } catch (e) {
+      _errorMessage = "Profil yuklenirken hata: ${e.toString()}";
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Kullanıcı bilgileri yüklenirken hata: $e')),
+        SnackBar(content: Text(_errorMessage), backgroundColor: Colors.red),
       );
-      print('Error loading user data: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -304,101 +348,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _saveProfile() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-        _isEditing = false; // Düzenleme modunu kapat
-      });
+  Future<void> _saveUserProfile() async {
+    if (_currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Kullanıcı bulunamadı."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
 
-      try {
-        final authService = Provider.of<AuthService>(context, listen: false);
-        if (authService.user != null) {
-          final userId = authService.user!.uid;
-          final email = authService.user!.email;
+    Map<String, dynamic> updatedData = {
+      'name': _nameController.text.trim(),
+      'age': int.tryParse(_ageController.text.trim()) ?? 0,
+      'department': _departmentController.text.trim(),
+      'university': _universityController.text.trim(),
+      'class': _classController.text.trim(),
+      'country': _selectedCountry,
+      'state': _selectedState,
+      'profileImageUrl': _profileImageUrl,
+      'skills': _editingSkills,
+      'experience': _experienceController.text.trim(),
+      'interests': _editingInterests,
+      'career_goals': _careerGoalsController.text.trim(),
+      'last_profile_update': FieldValue.serverTimestamp(),
+    };
 
-          // Upload profile image if selected
-          String? imageUrl;
-          if (_profileImage != null) {
-            try {
-              imageUrl = await _uploadImage(userId);
+    try {
+      await _firestore
+          .collection('users')
+          .doc(_currentUser!.uid)
+          .set(updatedData, SetOptions(merge: true));
 
-              if (imageUrl == null) {
-                throw Exception('Profil resmi yüklenemedi');
-              }
-            } catch (e) {
-              print('Profile image upload error: $e');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Profil fotoğrafı yüklenemedi: $e')),
-              );
-              setState(() {
-                _isLoading = false;
-              });
-              return;
-            }
-          } else {
-            imageUrl = _profileImageUrl; // Keep existing URL if no new image
-          }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Profil basariyla guncellendi!"),
+          backgroundColor: Colors.green,
+        ),
+      );
+      // After successful save, update controllers and switch back to view mode
+      if (mounted) {
+        setState(() {
+          // Update the text controllers with the latest chip data
+          _skillsController.text = _editingSkills.join(', ');
+          _interestsController.text = _editingInterests.join(', ');
 
-          // Save user data to Firestore
-          try {
-            final userRef = _firestore.collection('users').doc(userId);
-            await userRef.set({
-              'uid': userId,
-              'email': email,
-              'age': int.tryParse(_ageController.text.trim()) ?? 0,
-              'university': _universityController.text.trim(),
-              'department': _departmentController.text.trim(),
-              'class': _classController.text.trim(),
-              'country': _selectedCountry,
-              'state': _selectedState,
-              'profileImageUrl': imageUrl,
-              'updatedAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true));
-
-            // Update local state
-            setState(() {
-              _profileImageUrl = imageUrl;
-              _userData = {
-                'uid': userId,
-                'email': email,
-                'age': int.tryParse(_ageController.text.trim()) ?? 0,
-                'university': _universityController.text.trim(),
-                'department': _departmentController.text.trim(),
-                'class': _classController.text.trim(),
-                'country': _selectedCountry,
-                'state': _selectedState,
-                'profileImageUrl': imageUrl,
-              };
-            });
-
-            // Force a refresh in the AuthService to update all listening widgets
-            authService.notifyProfileUpdated();
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Profil bilgileriniz kaydedildi'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          } catch (e) {
-            print('Firestore save error: $e');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Profil bilgileri kaydedilemedi: $e')),
-            );
-          }
-        }
-      } catch (e) {
-        print('Error saving profile: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Profil kaydedilirken hata: $e')),
-        );
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+          _isEditing = false;
+        });
+      }
+    } catch (e) {
+      _errorMessage = "Profil kaydedilirken hata: ${e.toString()}";
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_errorMessage), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -514,7 +526,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Color(0xFF246EE9).withOpacity(0.05), Colors.white],
+                        colors: [
+                          Color(0xFF246EE9).withOpacity(0.05),
+                          Colors.white,
+                        ],
                       ),
                     ),
                     child: SingleChildScrollView(
@@ -807,10 +822,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return _isLoading
-      ? Center(child: CircularProgressIndicator())
-      : RefreshIndicator(
+        ? Center(child: CircularProgressIndicator())
+        : RefreshIndicator(
           onRefresh: () async {
-            await _loadUserData();
+            await _loadUserProfile();
             await _loadFavoritePrograms();
           },
           child: SingleChildScrollView(
@@ -833,11 +848,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   //       tooltip: 'Çıkış Yap',
                   //       color: Color(0xFF246EE9),
                   //     ),
-                  
+
                   // Rest of the profile content
                   _isEditing
-                    ? _buildEditForm()
-                    : Column(
+                      ? _buildEditForm()
+                      : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Profile header
@@ -852,20 +867,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             icon: Icons.person,
                             children: [
                               _buildInfoRow(
-                                label: 'Yaş',
-                                value: _userData?['age']?.toString() ?? '-',
+                                label: 'Ad Soyad',
+                                value: _nameController.text,
                               ),
                               _buildInfoRow(
-                                label: 'Üniversite',
-                                value: _userData?['university'] ?? '-',
+                                label: 'Yaş',
+                                value: _ageController.text,
                               ),
                               _buildInfoRow(
                                 label: 'Bölüm',
-                                value: _userData?['department'] ?? '-',
+                                value: _departmentController.text,
                               ),
                               _buildInfoRow(
-                                label: 'Sınıf',
-                                value: _userData?['class'] ?? '-',
+                                label: 'Ülke',
+                                value: _selectedCountry ?? 'Belirtilmemiş',
+                              ),
+                              if (_selectedCountry == 'Amerika Birleşik Devletleri' && (_selectedState != null && _selectedState!.isNotEmpty))
+                                _buildInfoRow(
+                                  label: 'Eyalet',
+                                  value: _selectedState!,
+                                ),
+                              _buildInfoRow(
+                                label: 'Yetenekler',
+                                value: _skillsController.text,
                               ),
                             ],
                           ),
@@ -873,18 +897,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SizedBox(height: 16),
 
                           _buildInfoSection(
-                            title: 'Tercih Edilen Konum Bilgileri',
-                            icon: Icons.flight_takeoff,
+                            title: 'Deneyimler',
+                            icon: Icons.work_outline_rounded,
                             children: [
                               _buildInfoRow(
-                                label: 'Ülke',
-                                value: _userData?['country'] ?? '-',
+                                label: 'Deneyimler',
+                                value: _experienceController.text,
                               ),
-                              if (_selectedCountry == 'Amerika Birleşik Devletleri')
-                                _buildInfoRow(
-                                  label: 'Eyalet',
-                                  value: _selectedState ?? '-',
-                                ),
+                            ],
+                          ),
+
+                          SizedBox(height: 16),
+
+                          _buildInfoSection(
+                            title: 'Kişisel Gelişim',
+                            icon: Icons.interests_outlined,
+                            children: [
+                              _buildInfoRow(
+                                label: 'İlgi Alanları',
+                                value: _interestsController.text,
+                              ),
+                            ],
+                          ),
+
+                          SizedBox(height: 16),
+
+                          _buildInfoSection(
+                            title: 'Kariyer Hedefleri',
+                            icon: Icons.flag_outlined,
+                            children: [
+                              _buildInfoRow(
+                                label: 'Kariyer Hedefleri',
+                                value: _careerGoalsController.text,
+                              ),
                             ],
                           ),
 
@@ -895,6 +940,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onPressed: () {
                               setState(() {
                                 _isEditing = true;
+                                // Initialize _editingSkills and _editingInterests when entering edit mode
+                                _editingSkills =
+                                    _skillsController.text
+                                        .split(',')
+                                        .map((s) => s.trim())
+                                        .where((s) => s.isNotEmpty)
+                                        .toList();
+                                _editingInterests =
+                                    _interestsController.text
+                                        .split(',')
+                                        .map((s) => s.trim())
+                                        .where((s) => s.isNotEmpty)
+                                        .toList();
                               });
                             },
                             icon: Icon(Icons.edit, color: Colors.white),
@@ -919,7 +977,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-      );
+        );
   }
 
   // Profile header with user image and name
@@ -1072,13 +1130,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // Build a row with label and value
   Widget _buildInfoRow({required String label, required String value}) {
+    Widget valueDisplayWidget;
+    bool isChipField = label == 'Yetenekler' || label == 'İlgi Alanları';
+
+    if (isChipField) {
+      List<String> items =
+          value
+              .split(',')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList();
+      if (items.isEmpty) {
+        valueDisplayWidget = Text(
+          'Belirtilmemiş',
+          style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey.shade500),
+        );
+      } else {
+        valueDisplayWidget = Wrap(
+          spacing: 8.0, // Horizontal gap between chips
+          runSpacing: 6.0, // Vertical gap between lines of chips
+          children:
+              items
+                  .map(
+                    (item) => Chip(
+                      label: Text(
+                        item,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color:
+                              Theme.of(context)
+                                  .colorScheme
+                                  .primary, // Using primary color for text
+                        ),
+                      ),
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(
+                        0.12,
+                      ), // Light primary color for background
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10.0,
+                        vertical: 4.0,
+                      ),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          8.0,
+                        ), // Softer corner radius
+                        side: BorderSide(
+                          color: Theme.of(context).colorScheme.primary
+                              .withOpacity(0.3), // Border color
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+        );
+      }
+    } else {
+      valueDisplayWidget = Text(
+        value.isNotEmpty ? value : 'Belirtilmemiş',
+        style: GoogleFonts.poppins(
+          fontSize: 14,
+          color: value.isNotEmpty ? Colors.black87 : Colors.grey.shade500,
+        ),
+      );
+    }
+
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 100,
+            width: 120, // Adjusted width to accommodate longer labels better
             child: Text(
               label,
               style: GoogleFonts.poppins(
@@ -1088,13 +1213,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              value,
-              style: GoogleFonts.poppins(fontSize: 14, color: Colors.black87),
-            ),
-          ),
+          const SizedBox(width: 16),
+          Expanded(child: valueDisplayWidget),
         ],
       ),
     );
@@ -1202,391 +1322,140 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 SizedBox(height: 16),
 
-                // Age field
-                Text(
-                  'Yaş',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[700],
-                  ),
-                ),
-                SizedBox(height: 6),
-                TextFormField(
-                  controller: _ageController,
-                  style: GoogleFonts.poppins(),
-                  decoration: InputDecoration(
-                    hintText: 'Yaşınızı girin',
-                    hintStyle: GoogleFonts.poppins(color: Colors.grey[400]),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: Color(0xFF246EE9),
-                        width: 2,
-                      ),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Lütfen yaşınızı girin';
-                    }
-                    final age = int.tryParse(value);
-                    if (age == null) {
-                      return 'Geçerli bir yaş girin';
-                    }
-                    if (age < 18 || age > 30) {
-                      return 'Work and Travel için yaşınız 18-30 arasında olmalıdır';
-                    }
-                    return null;
-                  },
+                // Name field
+                _buildTextField(
+                  controller: _nameController,
+                  label: "Ad Soyad",
+                  icon: Icons.person_outline,
                 ),
                 SizedBox(height: 16),
 
-                // University field
-                Text(
-                  'Üniversite',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[700],
-                  ),
-                ),
-                SizedBox(height: 6),
-                TextFormField(
-                  controller: _universityController,
-                  style: GoogleFonts.poppins(),
-                  decoration: InputDecoration(
-                    hintText: 'Üniversitenizi girin',
-                    hintStyle: GoogleFonts.poppins(color: Colors.grey[400]),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: Color(0xFF246EE9),
-                        width: 2,
-                      ),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Lütfen üniversitenizi girin';
-                    }
-                    return null;
-                  },
+                // Age field
+                _buildTextField(
+                  controller: _ageController,
+                  label: "Yaş",
+                  icon: Icons.cake_outlined,
+                  keyboardType: TextInputType.number,
                 ),
                 SizedBox(height: 16),
 
                 // Department field
-                Text(
-                  'Bölüm',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[700],
-                  ),
-                ),
-                SizedBox(height: 6),
-                TextFormField(
+                _buildTextField(
                   controller: _departmentController,
-                  style: GoogleFonts.poppins(),
-                  decoration: InputDecoration(
-                    hintText: 'Bölümünüzü girin',
-                    hintStyle: GoogleFonts.poppins(color: Colors.grey[400]),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: Color(0xFF246EE9),
-                        width: 2,
-                      ),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Lütfen bölümünüzü girin';
-                    }
-                    return null;
-                  },
+                  label: "Bölüm",
+                  icon: Icons.school_outlined,
                 ),
                 SizedBox(height: 16),
 
-                // Class field
-                Text(
-                  'Sınıf',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[700],
-                  ),
-                ),
-                SizedBox(height: 6),
-                TextFormField(
-                  controller: _classController,
-                  style: GoogleFonts.poppins(),
-                  decoration: InputDecoration(
-                    hintText: 'Sınıfınızı girin',
-                    hintStyle: GoogleFonts.poppins(color: Colors.grey[400]),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: Color(0xFF246EE9),
-                        width: 2,
-                      ),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Lütfen sınıfınızı girin';
-                    }
-                    return null;
+                // Country Dropdown
+                _buildDropdownFormField(
+                  label: "Ülke",
+                  icon: Icons.public,
+                  value: _selectedCountry,
+                  items: _countries,
+                  onChanged: (newValue) {
+                    setState(() {
+                      _selectedCountry = newValue;
+                      // Reset state if country changes, especially if it's no longer USA
+                      if (newValue != 'Amerika Birleşik Devletleri') {
+                        _selectedState = null;
+                      }
+                    });
                   },
+                  hintText: "Ülke Seçin",
                 ),
+                SizedBox(height: 16),
+
+                // State Dropdown (conditional)
+                if (_selectedCountry == 'Amerika Birleşik Devletleri')
+                  _buildDropdownFormField(
+                    label: "Eyalet",
+                    icon: Icons.location_city,
+                    value: _selectedState,
+                    items: _states, // Assuming _states list is populated
+                    onChanged: (newValue) {
+                      setState(() {
+                        _selectedState = newValue;
+                      });
+                    },
+                    hintText: "Eyalet Seçin",
+                  ),
+                if (_selectedCountry == 'Amerika Birleşik Devletleri') SizedBox(height: 16),
+
+                // Skills field - replaced with chip editor
+                _buildChipEditorFormField(
+                  label: "Yetenekler",
+                  icon: Icons.psychology_outlined,
+                  currentChips: _editingSkills,
+                  controller: _skillsChipInputController,
+                  onChipsChanged: (updatedChips) {
+                    setState(() {
+                      _editingSkills = updatedChips;
+                    });
+                  },
+                  hintText: "Yeni yetenek ekle...",
+                ),
+                SizedBox(height: 16),
               ],
             ),
           ),
 
           SizedBox(height: 24),
 
-          // Work & Travel Information Section
-          Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.flight_takeoff, color: Color(0xFF246EE9)),
-                    SizedBox(width: 8),
-                    Text(
-                      'Tercih Edilen Konum Bilgileri',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF246EE9),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 16),
+          // Experience Section
+          _buildInfoSection(
+            title: 'Deneyimler',
+            icon: Icons.work_outline_rounded,
+            children: [
+              _buildTextField(
+                controller: _experienceController,
+                label: "Deneyimler",
+                icon: Icons.work_outline_rounded,
+                maxLines: 4,
+                hintText:
+                    "Önceki işleriniz, projeleriniz veya stajlarınız hakkında bilgi verin...",
+              ),
+            ],
+          ),
 
-                // Country dropdown
-                Text(
-                  'Ülke',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[700],
-                  ),
-                ),
-                SizedBox(height: 6),
-                DropdownButtonFormField<String>(
-                  value: _selectedCountry,
-                  style: GoogleFonts.poppins(color: Colors.black87),
-                  decoration: InputDecoration(
-                    hintText: 'Ülke seçin',
-                    hintStyle: GoogleFonts.poppins(color: Colors.grey[400]),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: Color(0xFF246EE9),
-                        width: 2,
-                      ),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    suffixIcon: Icon(
-                      Icons.arrow_drop_down,
-                      color: Color(0xFF246EE9),
-                    ),
-                  ),
-                  dropdownColor: Colors.white,
-                  elevation: 8,
-                  icon: SizedBox.shrink(),
-                  items:
-                      _countries.map<DropdownMenuItem<String>>((
-                        String country,
-                      ) {
-                        return DropdownMenuItem<String>(
-                          value: country,
-                          child: Text(
-                            country,
-                            style: GoogleFonts.poppins(
-                              color: Colors.black87,
-                              fontSize: 14,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedCountry = newValue;
-                      // Eğer ülke değiştiyse ve yeni ülke ABD değilse, eyalet seçimini sıfırla
-                      if (newValue != 'Amerika Birleşik Devletleri') {
-                        _selectedState = null;
-                      }
-                    });
-                  },
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Lütfen bir ülke seçin';
-                    }
-                    return null;
-                  },
-                  isExpanded: true,
-                  menuMaxHeight: 300,
-                  hint: Text(
-                    'Ülke seçin',
-                    style: GoogleFonts.poppins(color: Colors.grey[400]),
-                  ),
-                ),
+          SizedBox(height: 24),
 
-                // State dropdown (only for USA)
-                if (isUSA) ...[
-                  SizedBox(height: 16),
-                  Text(
-                    'Eyalet',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    value: _selectedState,
-                    style: GoogleFonts.poppins(color: Colors.black87),
-                    decoration: InputDecoration(
-                      hintText: 'Eyalet seçin',
-                      hintStyle: GoogleFonts.poppins(color: Colors.grey[400]),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Color(0xFF246EE9),
-                          width: 2,
-                        ),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      suffixIcon: Icon(
-                        Icons.arrow_drop_down,
-                        color: Color(0xFF246EE9),
-                      ),
-                    ),
-                    dropdownColor: Colors.white,
-                    elevation: 8,
-                    icon: SizedBox.shrink(),
-                    items:
-                        _states.map<DropdownMenuItem<String>>((String state) {
-                          return DropdownMenuItem<String>(
-                            value: state,
-                            child: Text(
-                              state,
-                              style: GoogleFonts.poppins(
-                                color: Colors.black87,
-                                fontSize: 14,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        _selectedState = newValue;
-                      });
-                    },
-                    validator: (value) {
-                      if (isUSA && (value == null || value.isEmpty)) {
-                        return 'Lütfen bir eyalet seçin';
-                      }
-                      return null;
-                    },
-                    isExpanded: true,
-                    menuMaxHeight: 300,
-                    hint: Text(
-                      'Eyalet seçin',
-                      style: GoogleFonts.poppins(color: Colors.grey[400]),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+          // Interests Section
+          _buildInfoSection(
+            title: 'Kisisel Gelisim',
+            icon: Icons.interests_outlined,
+            children: [
+              // Interests field - replaced with chip editor
+              _buildChipEditorFormField(
+                label: "İlgi Alanları",
+                icon: Icons.interests_outlined,
+                currentChips: _editingInterests,
+                controller: _interestsChipInputController,
+                onChipsChanged: (updatedChips) {
+                  setState(() {
+                    _editingInterests = updatedChips;
+                  });
+                },
+                hintText: "Yeni ilgi alanı ekle...",
+              ),
+            ],
+          ),
+
+          SizedBox(height: 24),
+
+          // Career Goals Section
+          _buildInfoSection(
+            title: 'Kariyer Hedefleri',
+            icon: Icons.flag_outlined,
+            children: [
+              _buildTextField(
+                controller: _careerGoalsController,
+                label: "Kariyer Hedefleri",
+                icon: Icons.flag_outlined,
+                maxLines: 3,
+                hintText: "Gelecekteki kariyer hedeflerinizi aciklayin...",
+              ),
+            ],
           ),
 
           SizedBox(height: 32),
@@ -1599,6 +1468,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onPressed: () {
                     setState(() {
                       _isEditing = false;
+                      _skillsChipInputController.clear();
+                      _interestsChipInputController.clear();
                     });
                   },
                   style: OutlinedButton.styleFrom(
@@ -1618,7 +1489,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SizedBox(width: 16),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: _saveProfile,
+                  onPressed: _saveUserProfile,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(0xFF246EE9),
                     foregroundColor: Colors.white,
@@ -1637,6 +1508,237 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    int maxLines = 1,
+    TextInputType keyboardType = TextInputType.text,
+    String? hintText,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
+      child: TextField(
+        controller: controller,
+        maxLines: maxLines,
+        keyboardType: keyboardType,
+        style: GoogleFonts.poppins(fontSize: 15),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: GoogleFonts.poppins(
+            color: Colors.blue.shade700,
+            fontWeight: FontWeight.w500,
+          ),
+          hintText: hintText ?? 'Buraya yazin...',
+          hintStyle: GoogleFonts.poppins(
+            color: Colors.grey.shade500,
+            fontSize: 14,
+          ),
+          prefixIcon: Icon(icon, color: Colors.blue.shade700),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade400),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.blue.shade700, width: 1.5),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // New Widget for Chip Editing
+  Widget _buildChipEditorFormField({
+    required String label,
+    required IconData icon,
+    required List<String> currentChips,
+    required Function(List<String>) onChipsChanged,
+    required TextEditingController controller,
+    String hintText = "Yeni öğe ekle...",
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8.0, top: 10.0),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.blue.shade700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  color: Colors.blue.shade700,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Wrap(
+          spacing: 8.0,
+          runSpacing: 4.0,
+          children:
+              currentChips.map((chipText) {
+                return Chip(
+                  label: Text(
+                    chipText,
+                    style: GoogleFonts.poppins(fontSize: 13),
+                  ),
+                  onDeleted: () {
+                    List<String> updatedChips = List.from(currentChips);
+                    updatedChips.remove(chipText);
+                    onChipsChanged(updatedChips);
+                  },
+                  deleteIconColor: Colors.red.shade400,
+                  backgroundColor: Colors.grey.shade200,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8.0,
+                    vertical: 2.0,
+                  ),
+                );
+              }).toList(),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  style: GoogleFonts.poppins(fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: hintText,
+                    hintStyle: GoogleFonts.poppins(
+                      color: Colors.grey.shade500,
+                      fontSize: 14,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade400),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: Colors.blue.shade700,
+                        width: 1.5,
+                      ),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                  onSubmitted: (value) {
+                    if (value.trim().isNotEmpty) {
+                      List<String> updatedChips = List.from(currentChips);
+                      if (!updatedChips
+                          .map((c) => c.toLowerCase())
+                          .contains(value.trim().toLowerCase())) {
+                        // Avoid duplicates (case-insensitive)
+                        updatedChips.add(value.trim());
+                        onChipsChanged(updatedChips);
+                      }
+                      controller.clear();
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(
+                  Icons.add_circle_outline,
+                  color: Colors.blue.shade700,
+                ),
+                onPressed: () {
+                  final value = controller.text.trim();
+                  if (value.isNotEmpty) {
+                    List<String> updatedChips = List.from(currentChips);
+                    if (!updatedChips
+                        .map((c) => c.toLowerCase())
+                        .contains(value.toLowerCase())) {
+                      // Avoid duplicates (case-insensitive)
+                      updatedChips.add(value);
+                      onChipsChanged(updatedChips);
+                    }
+                    controller.clear();
+                  }
+                },
+                tooltip: "Ekle",
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper widget for DropdownButtonFormField
+  Widget _buildDropdownFormField({
+    required String label,
+    required IconData icon,
+    required String? value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+    required String hintText,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: GoogleFonts.poppins(color: Colors.blue.shade700, fontWeight: FontWeight.w500),
+          hintText: hintText,
+          hintStyle: GoogleFonts.poppins(color: Colors.grey.shade500, fontSize: 14),
+          prefixIcon: Icon(icon, color: Colors.blue.shade700),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade400),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.blue.shade700, width: 1.5),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+        items: items.map((String item) {
+          return DropdownMenuItem<String>(
+            value: item,
+            child: Text(item, style: GoogleFonts.poppins(fontSize: 15)),
+          );
+        }).toList(),
+        onChanged: onChanged,
+        validator: (val) => val == null ? '$label gerekli' : null,
       ),
     );
   }
