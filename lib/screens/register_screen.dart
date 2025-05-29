@@ -14,7 +14,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
@@ -31,14 +32,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _register(BuildContext context) async {
     if (_formKey.currentState!.validate()) {
       final authService = Provider.of<AuthService>(context, listen: false);
-      
+
       try {
         final success = await authService.registerWithEmailAndPassword(
           _emailController.text.trim(),
           _passwordController.text.trim(),
           _nameController.text.trim(),
         );
-        
+
         if (success && mounted) {
           Navigator.of(context).pushNamedAndRemoveUntil(
             '/main',
@@ -64,11 +65,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     }
   }
-  
+
   void _navigateToLogin(BuildContext context) {
     Navigator.of(context).pushReplacementNamed('/login');
   }
-  
+
   void _navigateToWelcome(BuildContext context) {
     Navigator.of(context).pushReplacementNamed('/welcome');
   }
@@ -76,7 +77,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
-    
+
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -98,14 +99,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Center(
                     child: Column(
                       children: [
-                        Icon(
-                          Icons.flight_takeoff,
-                          size: 70,
-                          color: Colors.blue,
-                        ),
+                        Image.asset('assets/icon/logo.png', height: 200,),
                         SizedBox(height: 24),
                         Text(
-                          'Work & Travel',
+                          'Edventure',
                           style: GoogleFonts.montserrat(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -124,7 +121,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   SizedBox(height: 40),
-                  
+
                   // Ad Soyad alanı
                   TextFormField(
                     controller: _nameController,
@@ -146,7 +143,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                   ),
                   SizedBox(height: 16),
-                  
+
                   // Email alanı
                   TextFormField(
                     controller: _emailController,
@@ -165,14 +162,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       if (value == null || value.isEmpty) {
                         return 'E-posta adresi gerekli';
                       }
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                      if (!RegExp(
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                      ).hasMatch(value)) {
                         return 'Geçerli bir e-posta adresi girin';
                       }
                       return null;
                     },
                   ),
                   SizedBox(height: 16),
-                  
+
                   // Şifre alanı
                   TextFormField(
                     controller: _passwordController,
@@ -182,8 +181,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       prefixIcon: Icon(Icons.lock),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _isPasswordVisible 
-                              ? Icons.visibility_off 
+                          _isPasswordVisible
+                              ? Icons.visibility_off
                               : Icons.visibility,
                         ),
                         onPressed: () {
@@ -209,7 +208,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                   ),
                   SizedBox(height: 16),
-                  
+
                   // Şifre Tekrar alanı
                   TextFormField(
                     controller: _confirmPasswordController,
@@ -219,13 +218,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       prefixIcon: Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _isConfirmPasswordVisible 
-                              ? Icons.visibility_off 
+                          _isConfirmPasswordVisible
+                              ? Icons.visibility_off
                               : Icons.visibility,
                         ),
                         onPressed: () {
                           setState(() {
-                            _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                            _isConfirmPasswordVisible =
+                                !_isConfirmPasswordVisible;
                           });
                         },
                       ),
@@ -246,15 +246,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                   ),
                   SizedBox(height: 32),
-                  
+
                   // Kayıt ol butonu
                   SizedBox(
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: authService.isLoading 
-                          ? null 
-                          : () => _register(context),
+                      onPressed:
+                          authService.isLoading
+                              ? null
+                              : () => _register(context),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
@@ -263,19 +264,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         elevation: 2,
                       ),
-                      child: authService.isLoading
-                          ? CircularProgressIndicator(color: Colors.white)
-                          : Text(
-                              'Kayıt Ol',
-                              style: GoogleFonts.montserrat(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                      child:
+                          authService.isLoading
+                              ? CircularProgressIndicator(color: Colors.white)
+                              : Text(
+                                'Kayıt Ol',
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
                     ),
                   ),
                   SizedBox(height: 16),
-                  
+
                   // İptal butonu
                   SizedBox(
                     width: double.infinity,
@@ -299,7 +301,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   SizedBox(height: 16),
-                  
+
                   // Gizlilik Politikası ve Kullanım Şartları
                   Center(
                     child: Text(
@@ -311,7 +313,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                   ),
-                  
+
                   // Giriş yap
                   Center(
                     child: Padding(
@@ -349,4 +351,4 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     );
   }
-} 
+}

@@ -311,40 +311,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<String?> _uploadImage(String userId) async {
     if (_profileImage == null) return _profileImageUrl;
 
-    setState(() {
-      _isLoading = true; // Show loading indicator during upload
-    });
-
     try {
-      // Daha basit bir referans yolu kullanıyoruz
       final storageRef = _storage
           .ref()
           .child('profile_images')
           .child('$userId.jpg');
 
-      // Upload işlemini basitleştirelim
       final uploadTask = storageRef.putFile(_profileImage!);
-
-      // Yükleme tamamlanana kadar bekleyin
       final snapshot = await uploadTask;
-
-      // Download URL'yi alın
       final downloadUrl = await snapshot.ref.getDownloadURL();
       print('Image uploaded successfully: $downloadUrl');
-
       return downloadUrl;
     } catch (e) {
       print('Error uploading image: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Fotoğraf yüklenirken hata: $e')));
       return null;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
   }
 
@@ -358,11 +338,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       return;
     }
+
+    if (!_formKey.currentState!.validate()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Lütfen formdaki hataları düzeltin."),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return; // Don't proceed if form is not valid
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = '';
     });
 
+    String? newImageUrl = _profileImageUrl; // Start with current or potentially null image URL
+
+    // 1. Handle Image Upload if a new image was picked
+    if (_profileImage != null) { // _profileImage is the File object of the new image
+      newImageUrl = await _uploadImage(_currentUser!.uid);
+      if (newImageUrl == null) {
+        // Image upload failed
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Profil fotoğrafı yüklenirken bir hata oluştu. Lütfen tekrar deneyin."),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isLoading = false; // Stop loading
+          });
+        }
+        return; // Exit if image upload fails, keep user in edit mode
+      }
+      // If upload was successful, newImageUrl now holds the new URL.
+      // _profileImageUrl will be updated with newImageUrl before saving to Firestore.
+    }
+
+    // 2. Prepare data for Firestore
     Map<String, dynamic> updatedData = {
       'name': _nameController.text.trim(),
       'age': int.tryParse(_ageController.text.trim()) ?? 0,
@@ -371,7 +387,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'class': _classController.text.trim(),
       'country': _selectedCountry,
       'state': _selectedState,
-      'profileImageUrl': _profileImageUrl,
+      'profileImageUrl': newImageUrl, // Use the potentially updated image URL
       'skills': _editingSkills,
       'experience': _experienceController.text.trim(),
       'interests': _editingInterests,
@@ -379,40 +395,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'last_profile_update': FieldValue.serverTimestamp(),
     };
 
+    // 3. Save to Firestore
     try {
       await _firestore
           .collection('users')
           .doc(_currentUser!.uid)
           .set(updatedData, SetOptions(merge: true));
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Profil basariyla guncellendi!"),
-          backgroundColor: Colors.green,
-        ),
-      );
-      // After successful save, update controllers and switch back to view mode
+      // Success!
       if (mounted) {
-        setState(() {
-          // Update the text controllers with the latest chip data
-          _skillsController.text = _editingSkills.join(', ');
-          _interestsController.text = _editingInterests.join(', ');
+         // Update local state to reflect the saved data
+        _profileImageUrl = newImageUrl; // Persist the new image URL locally
+        _profileImage = null; // Clear the local File object as it's uploaded
 
-          _isEditing = false;
+        _skillsController.text = _editingSkills.join(', ');
+        _interestsController.text = _editingInterests.join(', ');
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Profil başarıyla güncellendi!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+        setState(() {
+          _isEditing = false; // Switch back to view mode
+          _isLoading = false; // Stop loading
         });
       }
     } catch (e) {
+      // Firestore save failed
       _errorMessage = "Profil kaydedilirken hata: ${e.toString()}";
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_errorMessage), backgroundColor: Colors.red),
-      );
-    } finally {
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_errorMessage), backgroundColor: Colors.red),
+        );
         setState(() {
-          _isLoading = false;
+          _isLoading = false; // Stop loading, stay in edit mode
         });
       }
-    }
+    } 
+    // No finally block needed here for _isLoading as it's handled in success/error paths
   }
 
   Widget _buildFavoriteCard(SearchResult program) {
@@ -882,7 +904,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 label: 'Ülke',
                                 value: _selectedCountry ?? 'Belirtilmemiş',
                               ),
-                              if (_selectedCountry == 'Amerika Birleşik Devletleri' && (_selectedState != null && _selectedState!.isNotEmpty))
+                              if (_selectedCountry ==
+                                      'Amerika Birleşik Devletleri' &&
+                                  (_selectedState != null &&
+                                      _selectedState!.isNotEmpty))
                                 _buildInfoRow(
                                   label: 'Eyalet',
                                   value: _selectedState!,
@@ -1380,7 +1405,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                     hintText: "Eyalet Seçin",
                   ),
-                if (_selectedCountry == 'Amerika Birleşik Devletleri') SizedBox(height: 16),
+                if (_selectedCountry == 'Amerika Birleşik Devletleri')
+                  SizedBox(height: 16),
 
                 // Skills field - replaced with chip editor
                 _buildChipEditorFormField(
@@ -1711,9 +1737,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         isExpanded: true,
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: GoogleFonts.poppins(color: Colors.blue.shade700, fontWeight: FontWeight.w500),
+          labelStyle: GoogleFonts.poppins(
+            color: Colors.blue.shade700,
+            fontWeight: FontWeight.w500,
+          ),
           hintText: hintText,
-          hintStyle: GoogleFonts.poppins(color: Colors.grey.shade500, fontSize: 14),
+          hintStyle: GoogleFonts.poppins(
+            color: Colors.grey.shade500,
+            fontSize: 14,
+          ),
           prefixIcon: Icon(icon, color: Colors.blue.shade700),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -1729,14 +1761,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
         ),
-        items: items.map((String item) {
-          return DropdownMenuItem<String>(
-            value: item,
-            child: Text(item, style: GoogleFonts.poppins(fontSize: 15)),
-          );
-        }).toList(),
+        items:
+            items.map((String item) {
+              return DropdownMenuItem<String>(
+                value: item,
+                child: Text(item, style: GoogleFonts.poppins(fontSize: 15)),
+              );
+            }).toList(),
         onChanged: onChanged,
         validator: (val) => val == null ? '$label gerekli' : null,
       ),

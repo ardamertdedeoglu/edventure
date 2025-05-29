@@ -36,9 +36,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // Today's events variables
   List<Event> _todaysEvents = [];
   bool _isLoadingTodaysEvents = false;
-  
+
   // Welcome message variables
-  String _welcomeMessage = "Work & Travel yolculuğunuzda size yardımcı olmaya devam ediyoruz. Kaldığınız yerden devam edin.";
+  String _welcomeMessage =
+      "Work & Travel yolculuğunuzda size yardımcı olmaya devam ediyoruz. Kaldığınız yerden devam edin.";
   bool _isLoadingWelcomeMessage = false;
 
   @override
@@ -67,7 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Load programs from JSON
     await _programService.loadPrograms();
     _loadInitialSuggestions();
-    
+
     final authService = Provider.of<AuthService>(context, listen: false);
     if (authService.isAuthenticated) {
       _generateAIWelcomeMessage();
@@ -77,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
       isSearchLoading = false;
     });
   }
-  
+
   Future<void> _loadTodaysEvents() async {
     if (!mounted) return;
     setState(() {
@@ -87,19 +88,28 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       DateTime now = DateTime.now();
       DateTime todayStart = DateTime(now.year, now.month, now.day);
-      
-      QuerySnapshot snapshot = await _firestore
-          .collection('calendar_plans')
-          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
-          .where('date', isLessThan: Timestamp.fromDate(todayStart.add(const Duration(days: 1))))
-          .orderBy('date')
-          .get();
+
+      QuerySnapshot snapshot =
+          await _firestore
+              .collection('calendar_plans')
+              .where(
+                'date',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart),
+              )
+              .where(
+                'date',
+                isLessThan: Timestamp.fromDate(
+                  todayStart.add(const Duration(days: 1)),
+                ),
+              )
+              .orderBy('date')
+              .get();
 
       List<Event> events = [];
       for (var doc in snapshot.docs) {
         events.add(Event.fromMap(doc.data() as Map<String, dynamic>, doc.id));
       }
-      
+
       events.sort((a, b) {
         final startTimeA = a.startTime.hour * 60 + a.startTime.minute;
         final startTimeB = b.startTime.hour * 60 + b.startTime.minute;
@@ -142,19 +152,24 @@ class _HomeScreenState extends State<HomeScreen> {
           "messages": [
             {
               "role": "system",
-              "content": "Sen bir Work & Travel uygulamasında kullanıcıları karşılayan bir asistansın. Kullanıcılara work and travel, yurt dışı deneyimleri, kültürel değişim programları bağlamında kısa, samimi ve motive edici bir karşılama mesajı üret. Mesaj en fazla iki cümle olmalı ve Türkçe olmalı."
+              "content":
+                  "Sen bir Work & Travel uygulamasında kullanıcıları karşılayan bir asistansın. Kullanıcılara work and travel, yurt dışı deneyimleri, kültürel değişim programları bağlamında kısa, samimi ve motive edici bir karşılama mesajı üret. Mesaj en fazla iki cümle olmalı ve Türkçe olmalı.",
             },
-            {"role": "user", "content": "Kullanıcı için kişiselleştirilmiş bir karşılama mesajı üret"}
+            {
+              "role": "user",
+              "content":
+                  "Kullanıcı için kişiselleştirilmiş bir karşılama mesajı üret",
+            },
           ],
           "temperature": 0.7,
-          "max_tokens": 150
+          "max_tokens": 150,
         }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final content = data['choices'][0]['message']['content'];
-        
+
         if (mounted) {
           setState(() {
             _welcomeMessage = content.trim();
@@ -237,7 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   'API aramak için giriş yapmalısınız. Lütfen giriş yapın veya yerel modu kullanın.';
               _useLocalData = true;
             });
-            
+
             _loadInitialSuggestions();
             return;
           }
@@ -260,10 +275,11 @@ class _HomeScreenState extends State<HomeScreen> {
           searchResults = results;
           isSearchLoading = false;
         });
-        
+
         if (results.isEmpty) {
           setState(() {
-            searchErrorMessage = 'Sonuç bulunamadı. Farklı bir arama terimi deneyin.';
+            searchErrorMessage =
+                'Sonuç bulunamadı. Farklı bir arama terimi deneyin.';
           });
           _loadInitialSuggestions();
         }
@@ -274,14 +290,17 @@ class _HomeScreenState extends State<HomeScreen> {
           searchErrorMessage = e.toString();
           isSearchLoading = false;
         });
-        
+
         _loadInitialSuggestions();
       }
       print("Arama hatası: $e");
     }
   }
 
-  Widget _buildSearchResultCard(SearchResult result, {bool disableTap = false}) {
+  Widget _buildSearchResultCard(
+    SearchResult result, {
+    bool disableTap = false,
+  }) {
     final String mainDescription = result.description.split('\n\n').first;
     final String metadata =
         result.description.contains('\n\n')
@@ -345,255 +364,310 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-    
-    return disableTap 
-        ? cardContent 
+
+    return disableTap
+        ? cardContent
         : GestureDetector(
-            onTap: () => _showProgramDetails(result),
-            child: cardContent,
-          );
+          onTap: () => _showProgramDetails(result),
+          child: cardContent,
+        );
   }
 
   void _showProgramDetails(SearchResult result) async {
     final authService = Provider.of<AuthService>(context, listen: false);
     bool isInFavorites = false;
-    
+
     if (authService.isAuthenticated) {
       final favoritesService = FavoritesService();
-      isInFavorites = await favoritesService.isInFavorites(authService.user!.uid, result.id);
+      isInFavorites = await favoritesService.isInFavorites(
+        authService.user!.uid,
+        result.id,
+      );
     }
-    
+
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => Dialog(
-          insetPadding: EdgeInsets.zero,
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text('Program Detayı', style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600,
-              )),
-              backgroundColor: Color(0xFF246EE9),
-              foregroundColor: Colors.white,
-              elevation: 2,
-              leading: IconButton(
-                icon: Icon(Icons.close),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-            body: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF246EE9).withOpacity(0.05), Colors.white],
-                ),
-              ),
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        result.title,
-                        style: GoogleFonts.poppins(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF246EE9),
-                        ),
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setState) => Dialog(
+                  insetPadding: EdgeInsets.zero,
+                  child: Scaffold(
+                    appBar: AppBar(
+                      title: Text(
+                        'Program Detayı',
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                       ),
-                      SizedBox(height: 24),
-                      
-                      Container(
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 5,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.description, color: Color(0xFF246EE9)),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Program Açıklaması',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF246EE9),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 12),
-                            Text(
-                              result.description.split('\n\n').first,
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                height: 1.5,
-                              ),
-                            ),
+                      backgroundColor: Color(0xFF246EE9),
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      leading: IconButton(
+                        icon: Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ),
+                    body: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0xFF246EE9).withOpacity(0.05),
+                            Colors.white,
                           ],
                         ),
                       ),
-                      SizedBox(height: 24),
-                      
-                      if (result.description.contains('\n\n')) ...[
-                        Container(
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 5,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20.0),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              Text(
+                                result.title,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF246EE9),
+                                ),
+                              ),
+                              SizedBox(height: 24),
+
+                              Container(
+                                padding: EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 5,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.description,
+                                          color: Color(0xFF246EE9),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Program Açıklaması',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF246EE9),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 12),
+                                    Text(
+                                      result.description.split('\n\n').first,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 16,
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(height: 24),
+
+                              if (result.description.contains('\n\n')) ...[
+                                Container(
+                                  padding: EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 5,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline,
+                                            color: Color(0xFF246EE9),
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'Program Detayları',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF246EE9),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      SizedBox(height: 12),
+                                      Text(
+                                        result.description.split('\n\n').last,
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 15,
+                                          height: 1.5,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+
+                              SizedBox(height: 30),
+
                               Row(
                                 children: [
-                                  Icon(Icons.info_outline, color: Color(0xFF246EE9)),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Program Detayları',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF246EE9),
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () async {
+                                        final authService =
+                                            Provider.of<AuthService>(
+                                              context,
+                                              listen: false,
+                                            );
+                                        if (!authService.isAuthenticated) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Programları kaydetmek için giriş yapmalısınız',
+                                                style: GoogleFonts.poppins(),
+                                              ),
+                                            ),
+                                          );
+                                          return;
+                                        }
+
+                                        final favoritesService =
+                                            FavoritesService();
+                                        bool success = false;
+
+                                        if (isInFavorites) {
+                                          success = await favoritesService
+                                              .removeFromFavorites(
+                                                authService.user!.uid,
+                                                result.id,
+                                              );
+                                          if (success) {
+                                            setState(
+                                              () => isInFavorites = false,
+                                            );
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Program kaydedilenlerden çıkarıldı',
+                                                  style: GoogleFonts.poppins(),
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        } else {
+                                          success = await favoritesService
+                                              .addToFavorites(
+                                                authService.user!.uid,
+                                                result,
+                                              );
+                                          if (success) {
+                                            setState(
+                                              () => isInFavorites = true,
+                                            );
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Program başarıyla kaydedildi',
+                                                  style: GoogleFonts.poppins(),
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      },
+                                      icon: Icon(
+                                        isInFavorites
+                                            ? Icons.bookmark
+                                            : Icons.bookmark_border,
+                                        color: Colors.white,
+                                      ),
+                                      label: Text(
+                                        isInFavorites
+                                            ? 'Kaydedilenlerden Çıkar'
+                                            : 'Kaydet',
+                                        style: GoogleFonts.poppins(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Color(0xFF246EE9),
+                                        foregroundColor: Colors.white,
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        elevation: 2,
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(width: 16),
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Paylaşım özelliği yakında',
+                                              style: GoogleFonts.poppins(),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      icon: Icon(Icons.share),
+                                      label: Text(
+                                        'Paylaş',
+                                        style: GoogleFonts.poppins(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.grey.shade200,
+                                        foregroundColor: Colors.black87,
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        elevation: 2,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                              SizedBox(height: 12),
-                              Text(
-                                result.description.split('\n\n').last,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 15,
-                                  height: 1.5,
-                                  color: Colors.black87,
-                                ),
-                              ),
                             ],
                           ),
                         ),
-                      ],
-                      
-                      SizedBox(height: 30),
-                      
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () async {
-                                final authService = Provider.of<AuthService>(context, listen: false);
-                                if (!authService.isAuthenticated) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(
-                                      'Programları kaydetmek için giriş yapmalısınız',
-                                      style: GoogleFonts.poppins(),
-                                    )),
-                                  );
-                                  return;
-                                }
-                                
-                                final favoritesService = FavoritesService();
-                                bool success = false;
-                                
-                                if (isInFavorites) {
-                                  success = await favoritesService.removeFromFavorites(
-                                    authService.user!.uid, result.id);
-                                  if (success) {
-                                    setState(() => isInFavorites = false);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(
-                                        'Program kaydedilenlerden çıkarıldı',
-                                        style: GoogleFonts.poppins(),
-                                      )),
-                                    );
-                                  }
-                                } else {
-                                  success = await favoritesService.addToFavorites(
-                                    authService.user!.uid, result);
-                                  if (success) {
-                                    setState(() => isInFavorites = true);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(
-                                        'Program başarıyla kaydedildi',
-                                        style: GoogleFonts.poppins(),
-                                      )),
-                                    );
-                                  }
-                                }
-                              },
-                              icon: Icon(
-                                isInFavorites ? Icons.bookmark : Icons.bookmark_border,
-                                color: Colors.white,
-                              ),
-                              label: Text(
-                                isInFavorites ? 'Kaydedilenlerden Çıkar' : 'Kaydet',
-                                style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Color(0xFF246EE9),
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(vertical: 12),
-                                elevation: 2,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(
-                                    'Paylaşım özelliği yakında',
-                                    style: GoogleFonts.poppins(),
-                                  )),
-                                );
-                              },
-                              icon: Icon(Icons.share),
-                              label: Text(
-                                'Paylaş',
-                                style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.grey.shade200,
-                                foregroundColor: Colors.black87,
-                                padding: EdgeInsets.symmetric(vertical: 12),
-                                elevation: 2,
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
           ),
-        ),
-      ),
     );
   }
 
@@ -602,39 +676,90 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.0),
+          ),
           titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
           contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           actionsPadding: const EdgeInsets.fromLTRB(0, 0, 24, 16),
-          title: Text(event.title, style: GoogleFonts.poppins(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold, fontSize: 20)),
+          title: Text(
+            event.title,
+            style: GoogleFonts.poppins(
+              color: Theme.of(context).primaryColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 if (event.description.isNotEmpty) ...[
-                  Text('Açıklama:', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15)),
+                  Text(
+                    'Açıklama:',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(event.description, style: GoogleFonts.poppins(fontSize: 14)),
+                  Text(
+                    event.description,
+                    style: GoogleFonts.poppins(fontSize: 14),
+                  ),
                   const SizedBox(height: 12),
                 ],
-                Text('Başlangıç:', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15)),
+                Text(
+                  'Başlangıç:',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(event.startTime.format(context), style: GoogleFonts.poppins(fontSize: 14)),
+                Text(
+                  event.startTime.format(context),
+                  style: GoogleFonts.poppins(fontSize: 14),
+                ),
                 const SizedBox(height: 12),
-                Text('Bitiş:', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15)),
+                Text(
+                  'Bitiş:',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(event.endTime.format(context), style: GoogleFonts.poppins(fontSize: 14)),
+                Text(
+                  event.endTime.format(context),
+                  style: GoogleFonts.poppins(fontSize: 14),
+                ),
                 const SizedBox(height: 12),
-                Text('Tarih:', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15)),
+                Text(
+                  'Tarih:',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(MaterialLocalizations.of(context).formatShortDate(event.date), style: GoogleFonts.poppins(fontSize: 14)),
+                Text(
+                  MaterialLocalizations.of(context).formatShortDate(event.date),
+                  style: GoogleFonts.poppins(fontSize: 14),
+                ),
               ],
             ),
           ),
           actions: <Widget>[
             TextButton(
-              child: Text('Kapat', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Theme.of(context).primaryColor)),
+              child: Text(
+                'Kapat',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).primaryColor,
+                ),
+              ),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -644,7 +769,7 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
   }
-  
+
   Widget _buildTodaysPlansSection() {
     return Card(
       elevation: 5,
@@ -660,7 +785,11 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.today_outlined, color: Theme.of(context).primaryColorDark, size: 26),
+                    Icon(
+                      Icons.today_outlined,
+                      color: Theme.of(context).primaryColorDark,
+                      size: 26,
+                    ),
                     const SizedBox(width: 12),
                     Text(
                       "Bugünün Planları",
@@ -673,30 +802,45 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 IconButton(
-                  icon: Icon(Icons.refresh_rounded, color: Theme.of(context).primaryColor),
+                  icon: Icon(
+                    Icons.refresh_rounded,
+                    color: Theme.of(context).primaryColor,
+                  ),
                   onPressed: _loadTodaysEvents,
                   tooltip: "Yenile",
-                )
+                ),
               ],
             ),
             const SizedBox(height: 20),
             if (_isLoadingTodaysEvents)
-              const Center(child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 20.0),
-                child: CircularProgressIndicator(),
-              ))
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20.0),
+                  child: CircularProgressIndicator(),
+                ),
+              )
             else if (_todaysEvents.isEmpty)
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 30.0, horizontal: 10.0),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 30.0,
+                    horizontal: 10.0,
+                  ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.event_available_outlined, size: 50, color: Colors.grey.shade400),
+                      Icon(
+                        Icons.event_available_outlined,
+                        size: 50,
+                        color: Colors.grey.shade400,
+                      ),
                       const SizedBox(height: 15),
                       Text(
-                        "Bugun icin planiniz bulunmuyor.\nHarika bir gun gecirin!",
-                        style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600),
+                        "Bugün planınız yok. Harika bir gün geçirin!",
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          color: Colors.grey.shade600,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -714,47 +858,80 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () => _showEventDetailsDialog(event),
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 16.0),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12.0,
+                        vertical: 16.0,
+                      ),
                       decoration: BoxDecoration(
-                         // Optional: Add a subtle background or border per item
-                         // color: Colors.grey.shade50, 
-                         // borderRadius: BorderRadius.circular(12),
+                        // Optional: Add a subtle background or border per item
+                        // color: Colors.grey.shade50,
+                        // borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.lens_blur_rounded, color: Theme.of(context).primaryColor, size: 20),
+                          Icon(
+                            Icons.lens_blur_rounded,
+                            color: Theme.of(context).primaryColor,
+                            size: 20,
+                          ),
                           const SizedBox(width: 15),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(event.title, style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16.5)),
+                                Text(
+                                  event.title,
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16.5,
+                                  ),
+                                ),
                                 const SizedBox(height: 4),
                                 Text(
                                   "${event.startTime.format(context)} - ${event.endTime.format(context)}",
-                                  style: GoogleFonts.poppins(color: Colors.grey.shade700, fontSize: 13.5),
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.grey.shade700,
+                                    fontSize: 13.5,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                          Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: Colors.grey.shade400,
+                          ),
                         ],
                       ),
                     ),
                   );
                 },
-                separatorBuilder: (context, index) => Divider(height: 1, indent: 15, endIndent: 15, color: Colors.grey.shade200),
+                separatorBuilder:
+                    (context, index) => Divider(
+                      height: 1,
+                      indent: 15,
+                      endIndent: 15,
+                      color: Colors.grey.shade200,
+                    ),
               ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const CalendarScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const CalendarScreen(),
+                  ),
                 ).then((_) => _loadTodaysEvents());
               },
               icon: const Icon(Icons.calendar_month_rounded, size: 20),
-              label: Text('Tam Takvimi Görüntüle / Plan Ekle', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15)),
+              label: Text(
+                'Tam Takvimi Görüntüle / Plan Ekle',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 52),
                 shape: RoundedRectangleBorder(
@@ -775,13 +952,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
     final bool isNewUser = authService.isNewUser;
-    
+
     if (isNewUser) {
       Future.delayed(Duration.zero, () {
         authService.clearNewUserFlag();
       });
     }
-    
+
     return Scaffold(
       body: SingleChildScrollView(
         child: Column(
@@ -826,7 +1003,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 10),
                     _isLoadingWelcomeMessage
-                      ? Center(
+                        ? Center(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 15.0),
                             child: Row(
@@ -853,14 +1030,18 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                         )
-                      : Column(
+                        : Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isNewUser 
-                                ? 'Çalışma ve seyahat deneyiminizi yönetmek için uygulamanın ana özelliklerini keşfedin.'
-                                : _welcomeMessage,
-                              style: GoogleFonts.poppins(fontSize: 14.5, color: Colors.black87, height: 1.5),
+                              isNewUser
+                                  ? 'Çalışma ve seyahat deneyiminizi yönetmek için uygulamanın ana özelliklerini keşfedin.'
+                                  : _welcomeMessage,
+                              style: GoogleFonts.poppins(
+                                fontSize: 14.5,
+                                color: Colors.black87,
+                                height: 1.5,
+                              ),
                             ),
                             if (!isNewUser && _welcomeMessage.isNotEmpty) ...[
                               const SizedBox(height: 10),
@@ -897,7 +1078,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.search_rounded, color: Theme.of(context).primaryColorDark, size: 26),
+                          Icon(
+                            Icons.search_rounded,
+                            color: Theme.of(context).primaryColorDark,
+                            size: 26,
+                          ),
                           const SizedBox(width: 12),
                           Text(
                             'Program Ara',
@@ -915,8 +1100,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: GoogleFonts.poppins(fontSize: 15),
                         decoration: InputDecoration(
                           hintText: 'Program veya kategori ara...',
-                          hintStyle: GoogleFonts.poppins(color: Colors.grey.shade600),
-                          prefixIcon: Icon(Icons.search_outlined, color: Colors.grey.shade600),
+                          hintStyle: GoogleFonts.poppins(
+                            color: Colors.grey.shade600,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search_outlined,
+                            color: Colors.grey.shade600,
+                          ),
                           filled: true,
                           fillColor: Colors.grey.shade100.withOpacity(0.5),
                           border: OutlineInputBorder(
@@ -925,26 +1115,41 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade300,
+                              width: 1,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 1.5),
+                            borderSide: BorderSide(
+                              color: Theme.of(context).primaryColor,
+                              width: 1.5,
+                            ),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 12.0),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14.0,
+                            horizontal: 12.0,
+                          ),
                           suffixIcon: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (_searchController.text.isNotEmpty)
                                 IconButton(
-                                  icon: Icon(Icons.clear_rounded, color: Colors.grey.shade600),
+                                  icon: Icon(
+                                    Icons.clear_rounded,
+                                    color: Colors.grey.shade600,
+                                  ),
                                   onPressed: () {
                                     _searchController.clear();
                                     _loadInitialSuggestions();
                                   },
                                 ),
                               IconButton(
-                                icon: Icon(Icons.arrow_forward_ios_rounded, color: Theme.of(context).primaryColor),
+                                icon: Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  color: Theme.of(context).primaryColor,
+                                ),
                                 onPressed: performSearch,
                                 iconSize: 20,
                               ),
@@ -960,14 +1165,23 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 18),
                       if (isSearchLoading)
-                        const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 15.0), child: CircularProgressIndicator()))
-                      else if (searchErrorMessage.isNotEmpty && searchResults.isEmpty)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 15.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      else if (searchErrorMessage.isNotEmpty &&
+                          searchResults.isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 15.0),
                           child: Center(
                             child: Text(
                               searchErrorMessage,
-                              style: GoogleFonts.poppins(color: Colors.red.shade700, fontSize: 14),
+                              style: GoogleFonts.poppins(
+                                color: Colors.red.shade700,
+                                fontSize: 14,
+                              ),
                               textAlign: TextAlign.center,
                             ),
                           ),
@@ -977,33 +1191,49 @@ class _HomeScreenState extends State<HomeScreen> {
                           height: 220,
                           child: ListView.builder(
                             shrinkWrap: true,
-                            itemCount: searchResults.length > 2 ? 2 : searchResults.length,
+                            itemCount:
+                                searchResults.length > 2
+                                    ? 2
+                                    : searchResults.length,
                             itemBuilder: (context, index) {
-                              return _buildSearchResultCard(searchResults[index]);
+                              return _buildSearchResultCard(
+                                searchResults[index],
+                              );
                             },
                           ),
                         )
-                      else if (searchResults.isEmpty && _searchController.text.isNotEmpty)
-                         Padding(
+                      else if (searchResults.isEmpty &&
+                          _searchController.text.isNotEmpty)
+                        Padding(
                           padding: const EdgeInsets.symmetric(vertical: 15.0),
                           child: Center(
                             child: Text(
                               "Aradığınız kriterlere uygun program bulunamadı.",
-                              style: GoogleFonts.poppins(color: Colors.grey.shade700, fontSize: 14),
+                              style: GoogleFonts.poppins(
+                                color: Colors.grey.shade700,
+                                fontSize: 14,
+                              ),
                               textAlign: TextAlign.center,
                             ),
                           ),
                         ),
-
 
                       if (searchResults.length > 2)
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
                             icon: const Icon(Icons.read_more_rounded, size: 20),
-                            label: Text('Tüm Sonuçları Gör', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                            label: Text(
+                              'Tüm Sonuçları Gör',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                             style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
                               foregroundColor: Theme.of(context).primaryColor,
                             ),
                             onPressed: () {
@@ -1018,7 +1248,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                         borderRadius: BorderRadius.circular(16),
                                         child: SizedBox(
                                           width: double.maxFinite,
-                                          height: MediaQuery.of(context).size.height * 0.8,
+                                          height:
+                                              MediaQuery.of(
+                                                context,
+                                              ).size.height *
+                                              0.8,
                                           child: Column(
                                             children: [
                                               AppBar(
@@ -1028,13 +1262,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                                     fontWeight: FontWeight.bold,
                                                   ),
                                                 ),
-                                                backgroundColor: Color(0xFF246EE9),
+                                                backgroundColor: Color(
+                                                  0xFF246EE9,
+                                                ),
                                                 foregroundColor: Colors.white,
-                                                automaticallyImplyLeading: false,
+                                                automaticallyImplyLeading:
+                                                    false,
                                                 actions: [
                                                   IconButton(
                                                     icon: Icon(Icons.close),
-                                                    onPressed: () => Navigator.pop(context),
+                                                    onPressed:
+                                                        () => Navigator.pop(
+                                                          context,
+                                                        ),
                                                   ),
                                                 ],
                                               ),
@@ -1042,13 +1282,24 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 child: Container(
                                                   color: Colors.grey.shade50,
                                                   child: ListView.builder(
-                                                    padding: EdgeInsets.symmetric(vertical: 8),
-                                                    itemCount: searchResults.length,
-                                                    itemBuilder: (context, index) {
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                          vertical: 8,
+                                                        ),
+                                                    itemCount:
+                                                        searchResults.length,
+                                                    itemBuilder: (
+                                                      context,
+                                                      index,
+                                                    ) {
                                                       return GestureDetector(
                                                         onTap: () {
-                                                          Navigator.pop(context);
-                                                          _showProgramDetails(searchResults[index]);
+                                                          Navigator.pop(
+                                                            context,
+                                                          );
+                                                          _showProgramDetails(
+                                                            searchResults[index],
+                                                          );
                                                         },
                                                         child: _buildSearchResultCard(
                                                           searchResults[index],
